@@ -23,7 +23,7 @@ dashboard backend for the two reads the SDK cannot reach.
 | 🟡 **Status lights** | Per session: amber waiting on you, blue working, emerald unread — the pane paints the session's own dot |
 | 📄 **A page, then a door** | 50 rows, then *Show more (n)* — the row just past the page is always reachable |
 | 🗄️ **Archived section** | A collapsible section at the bottom of the same list, read from the pane's own backend (the gateway cannot list archived sessions at all) |
-| 🗂️ **Groups** | Named session groups still draw as boxes, anchored where their **newest** member would have been |
+| 🗂️ **Groups** | Named session groups draw as boxes **at the top** of the list, above the loose sessions |
 | ◆ **Apropos** *(beta)* | A fresh session seeded with the background of the ones you picked — same verbs, same digest |
 | ✅ **Multi-select** | Tick a set, then archive, close, delete or Apropos them in one go |
 | 🖱️ **The same menus** | Session, Group, Appearance, Assign to project — the roster's verbs, unchanged |
@@ -42,12 +42,15 @@ dashboard backend for the two reads the SDK cannot reach.
   silently.
 - **No Scheduled-jobs tile.** That pane belongs to Personae's layout.
 
-## One list has one consequence
+## The order
 
-A group box holds its members together, so a grouped session is not ordered by
-its own activity — it rides with its box, at the box's newest member. Everything
-ungrouped is strictly by activity, with a total tiebreak (profile, then id) so
-two rows at the same second cannot swap places between polls.
+**Group boxes come first.** A box is a place you put things, so it is not buried
+under a busy morning's traffic: every box sits above the loose list, and the boxes
+order themselves by their newest member so they do not jump around.
+
+Below them, every ungrouped session is strictly by activity — newest first — with
+a total tiebreak (profile, then id) so two rows at the same second cannot swap
+places between polls. Inside a box the members keep their own order.
 
 ## Install
 

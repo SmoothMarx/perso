@@ -8326,6 +8326,50 @@ h.rest.byProfile = {}
     JSON.stringify(grouped[1])
   )
 
+  // "groups should be at the top" (Pedro, 2026-11-11): a box is a place the user
+  // put things, so even a fresher loose session never jumps above it.
+  const newerLoose = __internals.flatSessionItems({
+    byProfile: { zulu: [mk('old', 100), mk('fresh', 900), mk('loose', 5000)] },
+    groups: { zulu: { collapsed: [], groups: [{ id: 'g1', name: 'Box', order: 0 }], members: { old: 'g1', fresh: 'g1' }, order: ['g1'] } },
+    hidden: {},
+    links: {},
+    profiles: ['zulu'],
+    released: {},
+    revealed: false,
+    searching: false
+  })
+
+  check(
+    'a group sits ABOVE the loose rows, however fresh they are',
+    newerLoose[0]?.kind === 'group' && newerLoose[1]?.session?.id === 'loose',
+    JSON.stringify(newerLoose.map(i => (i.kind === 'group' ? 'group' : i.session.id)))
+  )
+  check(
+    '…and the boxes keep a stable order among themselves (newest member first)',
+    (() => {
+      const two = __internals.flatSessionItems({
+        byProfile: { zulu: [mk('a1', 100), mk('b1', 5000), mk('loose', 9000)] },
+        groups: {
+          zulu: {
+            collapsed: [],
+            groups: [{ id: 'g1', name: 'Older', order: 0 }, { id: 'g2', name: 'Newer', order: 1 }],
+            members: { a1: 'g1', b1: 'g2' },
+            order: ['g1', 'g2']
+          }
+        },
+        hidden: {},
+        links: {},
+        profiles: ['zulu'],
+        released: {},
+        revealed: false,
+        searching: false
+      })
+
+      return two.map(i => (i.kind === 'group' ? i.block.name : i.session.id)).join(',') === 'Newer,Older,loose'
+    })(),
+    'boxes first, newest member first, then the loose list'
+  )
+
   check(
     'an archived row never enters the live list',
     flat({ zulu: [mk('live', 100), mk('gone', 200, { archived: true })] }).map(i => i.session.id).join(',') === 'live',

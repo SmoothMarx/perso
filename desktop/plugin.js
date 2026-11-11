@@ -6756,9 +6756,10 @@ function sessionActivityMs(session) {
  *  ordering without a DOM.
  *
  *  Two rules shape it:
- *   - a GROUP is ONE item, anchored at its most recent member. "Strictly by
- *     activity" cannot hold inside a box whose members are days apart, and a box
- *     that is not contiguous is not a box.
+ *   - a GROUP is ONE item, and the caller pins every box ABOVE the loose rows
+ *     (Pedro: "groups should be at the top"). Inside the list the members ride
+ *     together and keep their own order — a box that is not contiguous is not a
+ *     box.
  *   - everything ungrouped is strictly by activity (the caller sorts the lot). */
 function flatProfileItems({
   groups,
@@ -6819,8 +6820,14 @@ function flatProfileItems({
   return items
 }
 
-/** The whole list: every profile's items, ONE global order, newest first, then
- *  "Show more" pages through it.
+/** The whole list: every profile's items, ONE global order, then "Show more"
+ *  pages through it.
+ *
+ *  GROUP BOXES COME FIRST (Pedro, 2026-11-11: "groups should be at the top").
+ *  A box is a place the user put things; burying it under a busy morning's chat
+ *  traffic hides the one part of the list he arranged by hand. Boxes are ordered
+ *  among themselves by their newest member (so they do not jump around), and
+ *  every ungrouped session follows, strictly by activity.
  *
  *  The tiebreak is TOTAL (profile, then id): two rows at the same second must
  *  not swap places on every poll — a list that reshuffles by itself reads as
@@ -6845,9 +6852,12 @@ function flatSessionItems({ byProfile, groups, hidden, links, profiles, released
   }
 
   const idOf = item => (item.kind === 'group' ? `g:${item.block.id}` : `s:${item.session?.id}`)
+  // Groups first — always, whatever the clock says. Then activity, newest first.
+  const rank = item => (item.kind === 'group' ? 0 : 1)
 
   return items.sort(
     (a, b) =>
+      rank(a) - rank(b) ||
       b.at - a.at ||
       String(a.profile).localeCompare(String(b.profile)) ||
       idOf(a).localeCompare(idOf(b))
