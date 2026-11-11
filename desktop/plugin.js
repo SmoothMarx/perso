@@ -463,6 +463,9 @@ const FLAT_FETCH = 60
 /** The picture on a session row. Small enough to repeat on every line, large
  *  enough that a profile is recognisable from its avatar alone. */
 const AVATAR_ROW_SIZE = 17
+/** The picture at the head of a single-profile group box. Smaller than a row's:
+ *  it labels a section, it is not the row you are scanning. */
+const AVATAR_HEAD_SIZE = 14
 /** Job-run sources, never conversations a human resumes. The backend's own
  *  listing deny-list (`INTERNAL_LISTING_SOURCES`) covers cron/webhook too since
  *  2026-10-09, so this is now belt-and-braces: it still holds if the pane is
@@ -6611,7 +6614,12 @@ function SessionGroupHeading({
   onMove,
   onRename,
   onToggle,
-  profile
+  profile,
+  // The roster row of the ONE profile this box holds, when every member is that
+  // profile's. The picture then sits on the heading and the member rows drop
+  // theirs (Pedro, 2026-11-11: "put the profile picture to the left of the group
+  // name and remove the profile pictures from sessions inside the group").
+  profileRow
 }) {
   // How many Apropos children this group has started. A hook, so only a
   // rendered heading subscribes (see aproposGroupCount).
@@ -6651,6 +6659,20 @@ function SessionGroupHeading({
         onClick: guardClick(() => onToggle(block.id)),
         children: [
           jsx(DisclosureCaret, { open: !block.collapsed }, 'caret'),
+          // After the caret, before the name: the caret owns the far left of a
+          // box, so the picture can never push the disclosure out of reach.
+          profileRow
+            ? jsx(
+                'span',
+                {
+                  'data-group-profile': String(profile || ''),
+                  // `children:` and not the third argument — that slot is the KEY,
+                  // and an element passed there renders an empty span.
+                  children: jsx(Avatar, { row: profileRow, size: AVATAR_HEAD_SIZE })
+                },
+                'group-profile'
+              )
+            : null,
           // An Apropos group is a NORMAL session group that also carries a
           // generated child, and the diamond is the whole difference on screen.
           // Pedro, 2026-10-10: "create a new apropos group, just like a normal
@@ -6872,7 +6894,18 @@ function flatSessionItems({ byProfile, groups, hidden, links, profiles, released
  *  group it does not belong to, and in a flat list every row's neighbour may be
  *  another profile's. The menu's "Move to group ▸" is the same verb, scoped to
  *  the session's own profile, and it cannot silently fail. */
-function PersoRow({ aproposGroup, byProfile, groupId, groupState, handlers, nowMs, profile, profileRow, session }) {
+function PersoRow({
+  aproposGroup,
+  byProfile,
+  groupId,
+  groupState,
+  handlers,
+  hideProfile,
+  nowMs,
+  profile,
+  profileRow,
+  session
+}) {
   const key = `sess-${profile}-${session?.id}`
   const row = profileRow || { label: profile, name: profile }
   const node = jsx(
@@ -6906,8 +6939,11 @@ function PersoRow({ aproposGroup, byProfile, groupId, groupState, handlers, nowM
       onSelect: () => handlers.onSelect(profile, session?.id),
       onToggleSelect: () => handlers.onToggleSelect(sessionKey(profile, session?.id)),
       profile,
-      profileLabel: row.label || profile,
-      profileRow: row,
+      // Inside a single-profile box the heading already said who this is, so the
+      // row drops both the picture and the name chip: nothing is lost, and the
+      // rows stop repeating a label four times over.
+      profileLabel: hideProfile ? '' : row.label || profile,
+      profileRow: hideProfile ? null : row,
       profileSessions: byProfile?.[String(profile)] || [],
       selected: (handlers.selectedKeys || []).includes(sessionKey(profile, session?.id)),
       selecting: handlers.selecting,
@@ -7014,6 +7050,12 @@ function PersoList({
         }
 
         const block = item.block
+        // A box's members come from ONE profile: `sessionGroupBlocks` is asked
+        // per profile and the group store is keyed by profile, so a box cannot
+        // span profiles today. That is why the picture and the name move ONTO
+        // the heading — if a box ever holds two profiles' sessions, the rows must
+        // get them back (the `spanning` branch below).
+        const spanning = false
         const parts = [
           renamingGroup?.id === block.id
             ? jsx(
@@ -7060,7 +7102,8 @@ function PersoList({
                   onMove: delta => handlers.onMoveGroupOrder(item.profile, block.id, delta),
                   onRename: () => handlers.onRenameGroup({ id: block.id, name: block.name }),
                   onToggle: id => handlers.onToggleGroup(item.profile, id),
-                  profile: item.profile
+                  profile: item.profile,
+                  profileRow: spanning ? null : profileRows?.[item.profile]
                 },
                 `sg-${item.profile}-${block.id}`
               ),
@@ -7083,6 +7126,7 @@ function PersoList({
                         groupId: block.id,
                         groupState,
                         handlers,
+                        hideProfile: !spanning,
                         nowMs,
                         profile: item.profile,
                         profileRow: profileRows?.[item.profile],

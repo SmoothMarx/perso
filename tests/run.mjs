@@ -8458,6 +8458,40 @@ h.rest.byProfile = {}
   )
   check('no profile ROW is drawn — the roster is gone', !flatMarkup.includes('data-profile-row'))
 
+  // ── a single-profile box carries the identity on its HEADING ──────────────
+  // Pedro, 2026-11-11: "if the sessions in a group all belong to the same
+  // profile put the profile picture to the left of the group name and remove the
+  // profile pictures from sessions inside the group." A box's members are one
+  // profile's by construction (the group store is keyed by profile), so every box
+  // takes this shape.
+  __internals.createSessionGroup('zulu', 'Boxed', ['z-1'])
+  const boxedMarkup = renderToStaticMarkup(pane.render())
+  const boxAt = boxedMarkup.indexOf('data-group-profile="zulu"')
+  const boxRow = boxedMarkup.slice(boxedMarkup.indexOf('data-session="z-1"'))
+
+  check(
+    'a box puts its profile picture on the HEADING, before the name',
+    boxAt > 0 &&
+      boxAt < boxedMarkup.indexOf('Boxed') &&
+      /data-group-profile="zulu"[^>]*><img/.test(boxedMarkup),
+    boxedMarkup.slice(Math.max(0, boxAt - 200), boxAt + 200)
+  )
+  check(
+    '…and the rows INSIDE it drop the picture and the repeated name',
+    !boxRow.slice(0, 900).includes('<img') && !boxRow.slice(0, 900).includes('data-row-profile'),
+    boxRow.slice(0, 400)
+  )
+  check(
+    '…while a loose row keeps both',
+    (() => {
+      const loose = boxedMarkup.slice(boxedMarkup.indexOf('data-session="d-1"'))
+
+      return loose.includes('data-row-profile="default"')
+    })(),
+    'the default profile\'s loose row lost its label'
+  )
+  __internals.$sessionGroups.set({})
+
   // "Show more": the page is a door.
   const many = { zulu: Array.from({ length: 60 }, (_, i) => ({ id: `m-${i}`, last_active: nowS - i * 60, title: `m${i}` })) }
   h.queryResults['perso|sessions|default|zulu|60'] = { data: many, error: null, isError: false, isPending: false }

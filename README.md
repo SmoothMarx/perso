@@ -23,7 +23,7 @@ dashboard backend for the two reads the SDK cannot reach.
 | 🟡 **Status lights** | Per session: amber waiting on you, blue working, emerald unread — the pane paints the session's own dot |
 | 📄 **A page, then a door** | 50 rows, then *Show more (n)* — the row just past the page is always reachable |
 | 🗄️ **Archived section** | A collapsible section at the bottom of the same list, read from the pane's own backend (the gateway cannot list archived sessions at all) |
-| 🗂️ **Groups** | Named session groups draw as boxes **at the top** of the list, above the loose sessions |
+| 🗂️ **Groups** | Named session groups draw as boxes **at the top** of the list, above the loose sessions. A box holds one profile's sessions, so it wears the profile's picture on its heading and its rows drop the repeated picture and name |
 | ◆ **Apropos** *(beta)* | A fresh session seeded with the background of the ones you picked — same verbs, same digest |
 | ✅ **Multi-select** | Tick a set, then archive, close, delete or Apropos them in one go |
 | 🖱️ **The same menus** | Session, Group, Appearance, Assign to project — the roster's verbs, unchanged |
