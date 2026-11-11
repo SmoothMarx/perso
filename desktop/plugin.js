@@ -7369,43 +7369,41 @@ function PersoList({
   })
 }
 
-/** Every session CREATED at or before `targetId` — the set "hide all up to this
- *  point" hides.
+/** Every row from ANY profile on the far side of one moment.
  *
- *  CREATION time, not activity: Pedro asked for "all the sessions created before
- *  that one", and a chat that started last week but was answered yesterday still
- *  belongs to last week. The target itself is included ("the selected session as
- *  well as all the sessions created before that one").
+ *  "Up to this point" is a MOMENT, not a profile (Pedro, 2026-11-11: "when we use
+ *  the options archive/hide up to this point it refers to all sessions from all
+ *  profiles"). Each profile's own list goes through this one predicate, and every
+ *  entry keeps the profile it came from: the hide is per session, and an entry
+ *  that lost its owner would act on the wrong store.
  *
- *  A row with no `started_at` cannot be placed, so the cut keeps only the target:
- *  an unknown timestamp must never sweep the whole list into hiding. */
-function sessionsCreatedUpTo(sessions, targetId) {
-  const list = Array.isArray(sessions) ? sessions : []
-  const wanted = String(targetId ?? '')
-  const isTarget = session =>
-    Boolean(wanted) && (anySessionId(session) === wanted || String(session?.id || '') === wanted)
-  const target = list.find(isTarget)
+ *  `field` names the moment — `activity` (last activity) or `started` (when the
+ *  conversation began, which is what the hide cut means). `inclusive` takes the
+ *  anchor with it.
+ */
+function cutRowsByMoment(rows, profile, momentMs, { field = 'activity', inclusive = false } = {}) {
+  const at = Number(momentMs) || 0
 
-  if (!target) {
+  if (at <= 0) {
     return []
   }
 
-  const at = Number(target?.started_at) || 0
+  return (Array.isArray(rows) ? rows : [])
+    .filter(row => {
+      const when =
+        field === 'started'
+          ? secondsToMs(row?.started_at) || 0
+          : secondsToMs(row?.last_active || row?.started_at) || 0
 
-  if (at <= 0) {
-    return [target]
-  }
+      if (!when) {
+        return false
+      }
 
-  return list.filter(session => {
-    if (isTarget(session)) {
-      return true
-    }
-
-    const when = Number(session?.started_at) || 0
-
-    return when > 0 && when <= at
-  })
+      return inclusive ? when <= at : when < at
+    })
+    .map(row => ({ ...row, profile: String(profile), session_id: String(row?.id || '') }))
 }
+
 
 /** Hide a BATCH in one store write. The up-to-this-point verb names dozens of
  *  ids at a time, and a `setSessionHidden` per id would repaint the list (and
@@ -12343,29 +12341,56 @@ function MessengerPane() {
     // ONE handler bundle for both screens that draw a session row (the live
     // list and the archived section): the two must offer the SAME menu, not the
     // same labels on different verbs.
-    // "Hide all up to this point": the cut is read from the profile's WHOLE
-    // history, not from the page on screen — a capped page would hide a dozen
-    // rows and report the job done. Same discipline as the archive cut above.
+    // "Hide all up to this point": the cut is a MOMENT read across EVERY
+    // profile's whole history — not just this row's profile, and not just the
+    // page on screen (Pedro, 2026-11-11: "it refers to all sessions from all
+    // profiles"). A capped page would hide a dozen rows and report the job done.
     const hideUpTo = async (session, profile) => {
-      let entries = []
+      const anchorId = sessionIdOf(session) || String(session?.id || '')
+      const at = (Number(session?.started_at) || 0) * 1000
+
+      // A row that cannot be placed in time hides ONLY itself: an unknown
+      // moment must never sweep the fleet.
+      if (!at) {
+        return anchorId ? hideSessions(profile, [anchorId]).length : 0
+      }
+
+      let lists = []
 
       try {
-        entries = sessionsCreatedUpTo(
-          await listAllSessions(profile),
-          sessionIdOf(session) || session?.id
+        lists = await Promise.all(
+          rows.map(async row => {
+            try {
+              return [row.name, await listAllSessions(row.name)]
+            } catch {
+              return [row.name, []]
+            }
+          })
         )
       } catch {
-        entries = sessionsCreatedUpTo(byProfile[profile] || [], sessionIdOf(session) || session?.id)
+        lists = Object.entries(byProfile)
       }
 
-      if (!entries.length) {
-        return 0
+      let hidden = 0
+
+      for (const [name, list] of lists) {
+        const ids = cutRowsByMoment(list, name, at, { field: 'started', inclusive: true }).map(
+          entry => entry.id
+        )
+
+        if (ids.length) {
+          hideSessions(name, ids)
+          hidden += ids.length
+        }
       }
 
-      return hideSessions(
-        profile,
-        entries.map(entry => entry.id)
-      )
+      // The anchor is named explicitly: a listing row without `started_at`
+      // would be dropped by the cut and the click would look like a no-op.
+      if (anchorId) {
+        hideSessions(profile, [anchorId])
+      }
+
+      return hidden
     }
     const persoHandlers = {
       editingSession,
@@ -12945,7 +12970,7 @@ export const __internals = {
   $sessionStates,
   sessionActivityMs,
   sessionBucket,
-  sessionsCreatedUpTo,
+  cutRowsByMoment,
   openCoreFiles,
   migrateLegacyStorage,
   applyPref,

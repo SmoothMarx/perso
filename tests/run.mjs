@@ -8414,7 +8414,10 @@ h.rest.byProfile = {}
       { id: 's-200', started_at: 200 },
       { id: 's-300', started_at: 300 }
     ]
-    const cut = __internals.sessionsCreatedUpTo(rowsByStart, 's-200')
+    const cut = __internals.cutRowsByMoment(rowsByStart, 'zulu', 200 * 1000, {
+      field: 'started',
+      inclusive: true
+    })
 
     check(
       'the cut is by CREATION, and it includes the row it was opened on',
@@ -8424,10 +8427,28 @@ h.rest.byProfile = {}
     check(
       'a row with no start time hides ONLY itself (never the whole list)',
       __internals
-        .sessionsCreatedUpTo([{ id: 'a', started_at: 0 }, { id: 'b', started_at: 500 }], 'a')
+        .cutRowsByMoment([{ id: 'a', started_at: 0 }, { id: 'b', started_at: 500 }], 'zulu', 0, {
+          field: 'started',
+          inclusive: true
+        })
         .map(r => r.id)
-        .join(',') === 'a',
+        .join(',') === '',
       'an unknown timestamp swept rows it could not place'
+    )
+    check(
+      'the cut is a MOMENT, so every profile it runs over contributes its own rows',
+      ['zulu', 'matt']
+        .flatMap(name => __internals.cutRowsByMoment(rowsByStart, name, 200 * 1000, { field: 'started', inclusive: true }))
+        .filter(row => row.id === 's-100')
+        .map(row => row.profile)
+        .join(',') === 'zulu,matt',
+      'the cut stayed inside one profile'
+    )
+    check(
+      'the pane runs the hide over EVERY profile, not just the row’s own',
+      SRC.includes("cutRowsByMoment(list, name, at, { field: 'started', inclusive: true })") &&
+        SRC.includes('rows.map(async row =>'),
+      'the hide cut is wired to one profile again'
     )
     check(
       'hiding a batch is ONE store write and keeps what was already hidden',

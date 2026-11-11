@@ -22,7 +22,7 @@ dashboard backend for the two reads the SDK cannot reach.
 | 🖼️ **Who it belongs to** | Status dot → the profile's picture → the title → its name, on every row |
 | 💬 **Two-line rows** | The title, and under it the last line of that conversation — a row tall enough to read at a glance |
 | 🗂️ **Dividers** | The list is cut into **Unread**, **Running** and **Read** — what needs your eyes, what is working, what you have already seen |
-| 🙈 **Hide all up to here** | Right-click a session → both it and everything **created before it** leave the Perso view (reversible from the hidden toggle) |
+| 🙈 **Hide all up to here** | Right-click a session → both it and everything **created before it, in every profile**, leave the Perso view (reversible from the hidden toggle) |
 | 🟡 **Status lights** | Per session: amber waiting on you, blue working, emerald unread — the pane paints the session's own dot |
 | 📄 **A page, then a door** | 50 rows, then *Show more (n)* — the row just past the page is always reachable |
 | 🗄️ **Archived section** | A collapsible section at the bottom of the same list, read from the pane's own backend (the gateway cannot list archived sessions at all) |
