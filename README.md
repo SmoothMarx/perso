@@ -20,6 +20,8 @@ dashboard backend for the two reads the SDK cannot reach.
 | --- | --- |
 | 🗒️ **One flat list** | Every profile's sessions merged, newest activity first — no expanding, no per-profile rows |
 | 🖼️ **Who it belongs to** | Status dot → the profile's picture → the title → its name, on every row |
+| 💬 **Two-line rows** | The title, and under it the last line of that conversation — a row tall enough to read at a glance |
+| 🙈 **Hide all up to here** | Right-click a session → both it and everything **created before it** leave the Perso view (reversible from the hidden toggle) |
 | 🟡 **Status lights** | Per session: amber waiting on you, blue working, emerald unread — the pane paints the session's own dot |
 | 📄 **A page, then a door** | 50 rows, then *Show more (n)* — the row just past the page is always reachable |
 | 🗄️ **Archived section** | A collapsible section at the bottom of the same list, read from the pane's own backend (the gateway cannot list archived sessions at all) |
@@ -36,10 +38,11 @@ dashboard backend for the two reads the SDK cannot reach.
   the session; a profile is an attribute of a row, not a container.
 - **No profile aggregate dot.** A flat list shows each session's own light
   (Personae rolls them up per profile).
-- **No drag-and-drop.** A session dragged across a flat list could file an id
-  into a group that belongs to another profile, so the gesture is off; *Move to
-  group ▸* in the row menu is the same verb, scoped correctly and unable to fail
-  silently.
+- **No session drag, but groups drag.** A session dragged across a flat list
+  could file an id into a group that belongs to another profile, so that gesture
+  is off — *Move to group ▸* in the row menu is the same verb, scoped correctly
+  and unable to fail silently. **Group boxes** do drag: grab a heading and drop
+  it on another box (or its heading) to re-order them.
 - **No Scheduled-jobs tile.** That pane belongs to Personae's layout.
 
 ## The order

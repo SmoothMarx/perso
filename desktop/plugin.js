@@ -5788,6 +5788,7 @@ function SessionRow({
   onRename,
   onRenameCancel,
   onDragStart,
+  onHideUpTo,
   onRenameSubmit,
   onCreateAproposGroup,
   onArchiveUpTo,
@@ -5870,6 +5871,10 @@ function SessionRow({
   // Which channel this conversation arrived on ('' = the app's own surfaces).
   const channel = channelLabel(session?.source)
   const age = ageLabel(secondsToMs(session?.last_active || session?.started_at), nowMs)
+  // The last line of the conversation, cleaned by the same helper the roster's
+  // preview line uses (it rejects injected/system boilerplate, so a compaction
+  // banner can never become the thing the user reads under a title).
+  const preview = humanPreview(session?.preview)
   // The delete confirm is LOCAL to the row: it is one row's question, asked
   // where the user just clicked. The pane has no modal (and the SDK hands out no
   // dialog), so an inline strip is the whole confirmation.
@@ -6022,8 +6027,12 @@ function SessionRow({
             boxShadow: dropTarget
               ? `inset 0 ${dropSide === 'before' ? '' : '-'}2px 0 0 var(--ui-accent)`
               : undefined,
-            paddingBottom: 7,
-            paddingTop: 7
+            // Height, explicitly: the row was ~30px (16px line + 7/7 padding).
+            // Two lines at 16 + 15 plus 4/4 puts it at ~39px — the 30% Pedro
+            // asked for, and it is a `style` because 4px of padding has no
+            // utility the app compiled for a row this shape.
+            paddingBottom: 4,
+            paddingTop: 4
           },
           // In select mode the row's whole job flips: it ticks instead of
           // opening. (The menu still opens a session — a right-click is an
@@ -6057,125 +6066,151 @@ function SessionRow({
             profileRow
               ? jsx(Avatar, { row: profileRow, size: AVATAR_ROW_SIZE })
               : null,
-            // A message-body match: the text beside it is the MESSAGE the needle
-            // was found in, not the session title, so the glyph says why it is
-            // here.
-            session?.body
-              ? jsx(Codicon, { className: 'shrink-0 text-(--ui-text-quaternary)', name: 'comment-discussion' })
-              : null,
-            // The Apropos mark, BEFORE the name and OUTSIDE the truncating
-            // cell: a mark that scrolls away with a long title is not a mark.
-            mark
-              ? jsx(
-                  'span',
-                  {
-                    'data-row-mark': groupedChild ? 'child' : 'source',
-                    className: 'shrink-0 text-[0.6875rem] text-(--ui-text-quaternary)',
-                    children: mark
-                  },
-                  'mark'
-                )
-              : null,
-            // The name carries the picked color. `style`, not a class: a
-            // user-chosen hex has no compiled utility to reuse.
-            jsx('span', {
-              className: 'min-w-0 flex-1 truncate',
-              style: color ? { color } : undefined,
-              children: title
-            }),
-            // WHICH profile this chat belongs to. Shrinkable and truncatable: it
-            // is a hint, never the reason a title stops fitting.
-            profileLabel
-              ? jsx(
-                  'span',
-                  {
-                    'data-row-profile': profile,
-                    className:
-                      'min-w-0 shrink truncate rounded-sm px-1 text-[0.625rem] text-(--ui-text-quaternary)',
-                    children: profileLabel
-                  },
-                  'profile-label'
-                )
-              : null,
-            // The channel chip: a Telegram / WhatsApp / Discord session says so,
-            // in the same muted micro-type the profile row's "default" badge
-            // uses. No chip for the app's own surfaces (see channelLabel).
-            channel
-              ? jsx(
-                  'span',
-                  {
-                    className:
-                      'shrink-0 rounded-sm px-1 text-[0.625rem] uppercase text-(--ui-text-quaternary)',
-                    children: channel
-                  },
-                  'channel'
-                )
-              : null,
-            // The Apropos chip: `↩ parent` on a child, `→ n` on a parent. The
-            // same muted micro-type as the channel chip, and the same reason it
-            // is a span and not a button — the row's own button owns the click.
-            // Inside its own Apropos group the hook already says where this row
-            // came from, so the chip would only repeat it.
-            parentLink && !groupedChild
-              ? jsx(
-                  'span',
-                  {
-                    'data-apropos-parent': parentLink.parent,
-                    className: 'shrink-0 text-[0.6875rem] text-(--ui-text-quaternary)',
-                    children: `↩ ${clip(parentLink.label || parentLink.parent, 24)}`
-                  },
-                  'apropos-parent'
-                )
-              : null,
-            childCount
-              ? jsx(
-                  'span',
-                  {
-                    'data-apropos-children': String(childCount),
-                    className: 'shrink-0 text-[0.6875rem] text-(--ui-text-quaternary)',
-                    children: `→ ${childCount}`
-                  },
-                  'apropos-children'
-                )
-              : null,
-            hidden
-              ? jsx(
-                  'span',
-                  {
-                    'data-session-hidden': storedId,
-                    className:
-                      'shrink-0 rounded-sm px-1 text-[0.625rem] uppercase text-(--ui-text-quaternary)',
-                    children: 'hidden'
-                  },
-                  'hidden-chip'
-                )
-              : null,
-            archived
-              ? jsx(
-                  'span',
-                  {
-                    'data-session-archived': storedId,
-                    className:
-                      'shrink-0 rounded-sm px-1 text-[0.625rem] uppercase text-(--ui-text-quaternary)',
-                    children: 'archived'
-                  },
-                  'archived-chip'
-                )
-              : null,
-            matches
-              ? jsx(
-                  'span',
-                  {
-                    'data-session-matches': String(matches),
-                    className: 'shrink-0 text-[0.6875rem] text-(--ui-text-quaternary)',
-                    children: `${matches} matches`
-                  },
-                  'matches'
-                )
-              : null,
-            age
-              ? jsx('span', { className: 'shrink-0 text-[0.6875rem] text-(--ui-text-quaternary)', children: age })
-              : null,
+            // ── the row's text block: TWO lines ─────────────────────────
+            // Pedro, 2026-11-11: "include the last line from the conversation".
+            // The card the row imitates is a messenger row — a name and, under
+            // it, the last thing that was said. The title keeps the flexible
+            // cell so every row's name still starts on one left edge, and the
+            // age stays at the end of THAT line, where it has always been.
+            jsxs('div', {
+              className: 'flex min-w-0 flex-1 flex-col',
+              children: [
+                jsxs('div', {
+                  className: 'flex min-w-0 items-center gap-1.5',
+                  children: [
+              // A message-body match: the text beside it is the MESSAGE the needle
+              // was found in, not the session title, so the glyph says why it is
+              // here.
+              session?.body
+                ? jsx(Codicon, { className: 'shrink-0 text-(--ui-text-quaternary)', name: 'comment-discussion' })
+                : null,
+              // The Apropos mark, BEFORE the name and OUTSIDE the truncating
+              // cell: a mark that scrolls away with a long title is not a mark.
+              mark
+                ? jsx(
+                    'span',
+                    {
+                      'data-row-mark': groupedChild ? 'child' : 'source',
+                      className: 'shrink-0 text-[0.6875rem] text-(--ui-text-quaternary)',
+                      children: mark
+                    },
+                    'mark'
+                  )
+                : null,
+              // The name carries the picked color. `style`, not a class: a
+              // user-chosen hex has no compiled utility to reuse.
+              jsx('span', {
+                className: 'min-w-0 flex-1 truncate',
+                style: color ? { color } : undefined,
+                children: title
+              }),
+              // WHICH profile this chat belongs to. Shrinkable and truncatable: it
+              // is a hint, never the reason a title stops fitting.
+              profileLabel
+                ? jsx(
+                    'span',
+                    {
+                      'data-row-profile': profile,
+                      className:
+                        'min-w-0 shrink truncate rounded-sm px-1 text-[0.625rem] text-(--ui-text-quaternary)',
+                      children: profileLabel
+                    },
+                    'profile-label'
+                  )
+                : null,
+              // The channel chip: a Telegram / WhatsApp / Discord session says so,
+              // in the same muted micro-type the profile row's "default" badge
+              // uses. No chip for the app's own surfaces (see channelLabel).
+              channel
+                ? jsx(
+                    'span',
+                    {
+                      className:
+                        'shrink-0 rounded-sm px-1 text-[0.625rem] uppercase text-(--ui-text-quaternary)',
+                      children: channel
+                    },
+                    'channel'
+                  )
+                : null,
+              // The Apropos chip: `↩ parent` on a child, `→ n` on a parent. The
+              // same muted micro-type as the channel chip, and the same reason it
+              // is a span and not a button — the row's own button owns the click.
+              // Inside its own Apropos group the hook already says where this row
+              // came from, so the chip would only repeat it.
+              parentLink && !groupedChild
+                ? jsx(
+                    'span',
+                    {
+                      'data-apropos-parent': parentLink.parent,
+                      className: 'shrink-0 text-[0.6875rem] text-(--ui-text-quaternary)',
+                      children: `↩ ${clip(parentLink.label || parentLink.parent, 24)}`
+                    },
+                    'apropos-parent'
+                  )
+                : null,
+              childCount
+                ? jsx(
+                    'span',
+                    {
+                      'data-apropos-children': String(childCount),
+                      className: 'shrink-0 text-[0.6875rem] text-(--ui-text-quaternary)',
+                      children: `→ ${childCount}`
+                    },
+                    'apropos-children'
+                  )
+                : null,
+              hidden
+                ? jsx(
+                    'span',
+                    {
+                      'data-session-hidden': storedId,
+                      className:
+                        'shrink-0 rounded-sm px-1 text-[0.625rem] uppercase text-(--ui-text-quaternary)',
+                      children: 'hidden'
+                    },
+                    'hidden-chip'
+                  )
+                : null,
+              archived
+                ? jsx(
+                    'span',
+                    {
+                      'data-session-archived': storedId,
+                      className:
+                        'shrink-0 rounded-sm px-1 text-[0.625rem] uppercase text-(--ui-text-quaternary)',
+                      children: 'archived'
+                    },
+                    'archived-chip'
+                  )
+                : null,
+              matches
+                ? jsx(
+                    'span',
+                    {
+                      'data-session-matches': String(matches),
+                      className: 'shrink-0 text-[0.6875rem] text-(--ui-text-quaternary)',
+                      children: `${matches} matches`
+                    },
+                    'matches'
+                  )
+                : null,
+              age
+                ? jsx('span', { className: 'shrink-0 text-[0.6875rem] text-(--ui-text-quaternary)', children: age })
+                : null
+                  ]
+                }),
+                // The last line of the conversation, clipped to one line. A row
+                // with nothing said in it draws none — never an empty band.
+                preview
+                  ? jsx('div', {
+                      'data-session-preview': storedId,
+                      className: 'min-w-0 truncate text-[0.625rem] text-(--ui-text-quaternary)',
+                      style: { lineHeight: '15px' },
+                      children: preview
+                    }, 'preview')
+                  : null
+              ]
+            })
             // Re-ordering sessions is a drag-job too: the row IS the handle (the
             // pointerdown above arms it past a threshold), so the click still
             // opens the session and a list you re-sort by accident is worse than
@@ -6261,6 +6296,19 @@ function SessionRow({
                           children: menuGlyph(hidden ? 'eye' : 'eye-closed', hidden ? 'Unhide in Perso' : 'Hide from Perso')
                         },
                         'hide-session'
+                      ),
+                      // The bulk form of Hide, scoped by CREATION time (Pedro,
+                      // 2026-11-11: "hides from the Perso UI the selected session
+                      // as well as all the sessions created before that one"). The
+                      // pane reads the profile's FULL list before acting, so the
+                      // cut is the whole history, not the page on screen.
+                      jsx(
+                        ContextMenuItem,
+                        {
+                          onSelect: () => onHideUpTo?.(session, profile),
+                          children: menuGlyph('eye-closed', 'Hide all up to this point…')
+                        },
+                        'hide-upto'
                       ),
                       // An ARCHIVED row gets the way back instead of the verb it
                       // already has: "Archive" on something already archived is a
@@ -6931,6 +6979,7 @@ function PersoRow({
           })
         ),
       onMoveGroup: payload => handlers.onMoveGroup(profile, payload),
+      onHideUpTo: handlers.onHideUpTo,
       onNewGroup: () => handlers.onNewGroup(profile, [session?.id]),
       onRename: handlers.onRenameSession,
       onRenameCancel: handlers.onRenameCancel,
@@ -6963,8 +7012,11 @@ function PersoList({
   cap,
   cut,
   cutBar,
+  drag,
+  dropAt,
   handlers,
   nowMs,
+  onDragStart,
   onMore,
   onToggleHidden,
   profileRows,
@@ -7072,8 +7124,17 @@ function PersoList({
                 SessionGroupHeading,
                 {
                   block,
-                  dragging: false,
-                  dropTarget: false,
+                  // Groups are draggable here (Pedro, 2026-11-11: "allow the user
+                  // to DnD the groups"). The gesture was already built and wired
+                  // for the roster — `dropAction` answers `sessionGroupOrder` and
+                  // `elementAt` reads both the heading strip and the whole box —
+                  // so this only has to hand the heading the drag state and the
+                  // arm handler.
+                  dragging: drag?.kind === 'sessionGroup' && String(drag.group) === String(block.id),
+                  dropTarget:
+                    String(dropAt?.sessionGroup || '') === String(block.id) ||
+                    String(dropAt?.groupBox || '') === String(block.id),
+                  onDragStart,
                   groupCount: item.groupCount,
                   index: item.index,
                   // "Apropos this group" makes it an Apropos group and STOPS —
@@ -7144,7 +7205,12 @@ function PersoList({
           'div',
           {
             className: 'grid min-w-0 grid-cols-1',
-            children: sessionGroupShell(block, parts, false, fill(item.profile))
+            children: sessionGroupShell(
+              block,
+              parts,
+              drag?.kind === 'sessionGroup' && String(drag.group) === String(block.id),
+              fill(item.profile)
+            )
           },
           `box-${item.profile}-${block.id}`
         )
@@ -7198,6 +7264,65 @@ function PersoList({
         : null
     ]
   })
+}
+
+/** Every session CREATED at or before `targetId` — the set "hide all up to this
+ *  point" hides.
+ *
+ *  CREATION time, not activity: Pedro asked for "all the sessions created before
+ *  that one", and a chat that started last week but was answered yesterday still
+ *  belongs to last week. The target itself is included ("the selected session as
+ *  well as all the sessions created before that one").
+ *
+ *  A row with no `started_at` cannot be placed, so the cut keeps only the target:
+ *  an unknown timestamp must never sweep the whole list into hiding. */
+function sessionsCreatedUpTo(sessions, targetId) {
+  const list = Array.isArray(sessions) ? sessions : []
+  const wanted = String(targetId ?? '')
+  const isTarget = session =>
+    Boolean(wanted) && (anySessionId(session) === wanted || String(session?.id || '') === wanted)
+  const target = list.find(isTarget)
+
+  if (!target) {
+    return []
+  }
+
+  const at = Number(target?.started_at) || 0
+
+  if (at <= 0) {
+    return [target]
+  }
+
+  return list.filter(session => {
+    if (isTarget(session)) {
+      return true
+    }
+
+    const when = Number(session?.started_at) || 0
+
+    return when > 0 && when <= at
+  })
+}
+
+/** Hide a BATCH in one store write. The up-to-this-point verb names dozens of
+ *  ids at a time, and a `setSessionHidden` per id would repaint the list (and
+ *  write localStorage) once per row. */
+function hideSessions(profile, ids) {
+  const key = String(profile)
+  const next = [...new Set([...hiddenFor(key), ...(ids || []).map(String)])]
+  const state = { ...hiddenSessions }
+
+  if (next.length) {
+    state[key] = next
+  } else {
+    delete state[key]
+  }
+
+  hiddenSessions = state
+  $hiddenSessions.set(state)
+  persist(HIDDEN_KEY, state)
+
+  return next.length
 }
 
 /** Every profile's archived sessions in one list — the section at the bottom of
@@ -12115,8 +12240,33 @@ function MessengerPane() {
     // ONE handler bundle for both screens that draw a session row (the live
     // list and the archived section): the two must offer the SAME menu, not the
     // same labels on different verbs.
+    // "Hide all up to this point": the cut is read from the profile's WHOLE
+    // history, not from the page on screen — a capped page would hide a dozen
+    // rows and report the job done. Same discipline as the archive cut above.
+    const hideUpTo = async (session, profile) => {
+      let entries = []
+
+      try {
+        entries = sessionsCreatedUpTo(
+          await listAllSessions(profile),
+          sessionIdOf(session) || session?.id
+        )
+      } catch {
+        entries = sessionsCreatedUpTo(byProfile[profile] || [], sessionIdOf(session) || session?.id)
+      }
+
+      if (!entries.length) {
+        return 0
+      }
+
+      return hideSessions(
+        profile,
+        entries.map(entry => entry.id)
+      )
+    }
     const persoHandlers = {
       editingSession,
+      onHideUpTo: hideUpTo,
       onArchiveUpTo: openArchiveUpTo,
       onCreateAproposGroup: entry => {
         const entries = ticks.length ? ticks : [entry]
@@ -12200,8 +12350,13 @@ function MessengerPane() {
           cap: flatCap,
           cut: archiveCut,
           cutBar,
+          // Group drag lives in the pane (its window-level listeners own the
+          // gesture); the list only reports what is held and what is under it.
+          drag,
+          dropAt,
           handlers: persoHandlers,
           nowMs,
+          onDragStart: startDrag,
           onMore: () => setFlatCap(count => count + FLAT_PAGE),
           onToggleHidden: () => setRevealHidden(revealed => !revealed),
           profileRows: Object.fromEntries(rows.map(row => [row.name, row])),
@@ -12679,8 +12834,10 @@ export const __internals = {
   PersoRow,
   flatProfileItems,
   flatSessionItems,
+  hideSessions,
   loadArchivedRows,
   sessionActivityMs,
+  sessionsCreatedUpTo,
   openCoreFiles,
   migrateLegacyStorage,
   applyPref,

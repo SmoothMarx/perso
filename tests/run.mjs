@@ -1106,6 +1106,13 @@ check(
   })()
 )
 check(
+  'the row offers the bulk hide, right after the single one',
+  menuLabel(sessionMenu, 'Hide all up to this point…') &&
+    glyphFor(sessionMenu, 'Hide all up to this point…') === 'eye-closed' &&
+    labelAt(sessionMenu, 'Hide all up to this point…') > labelAt(sessionMenu, 'Hide from Perso'),
+  `hideAt=${labelAt(sessionMenu, 'Hide from Perso')} bulkAt=${labelAt(sessionMenu, 'Hide all up to this point…')}`
+)
+check(
   'Session carries the transcript verbs',
   ['Mark as unread', 'Rename…', 'Branch', 'Copy id', 'Export…', 'Hide from Perso', 'Archive'].every(label =>
     menuLabel(sessionMenu, label)
@@ -1194,11 +1201,14 @@ check(
     const to = sessionMenu.lastIndexOf(slot, labelAt(sessionMenu, 'Apropos (On that topic, beta)'))
     const drawn = [...sessionMenu.slice(from, to).matchAll(/data-codicon="([^"]+)"/g)].map(m => m[1])
 
-    // 1.4.0 adds "Archive all up to this point…" — a SECOND archive glyph, on
-    // purpose: it is the same family of verb (reversible, no data loss) at a
-    // different SCOPE, and the one-glyph-per-row rule is about every row having
-    // a glyph, not about every glyph being unique.
-    return drawn.join(' ') === 'history mail edit repo-forked copy cloud-download eye-closed archive archive trash'
+    // "Archive all up to this point…" and "Hide all up to this point…" repeat
+    // their single-row glyph on purpose: each is the same verb at a different
+    // SCOPE (reversible, no data loss), and the one-glyph-per-row rule is about
+    // every row having a glyph, not about every glyph being unique.
+    return (
+      drawn.join(' ') ===
+      'history mail edit repo-forked copy cloud-download eye-closed eye-closed archive archive trash'
+    )
   })(),
   (() => {
     const slot = 'data-slot="context-menu-sub-trigger"'
@@ -8395,6 +8405,42 @@ h.rest.byProfile = {}
     'a group box survived a search'
   )
 
+  // ── "hide all up to this point" ───────────────────────────────────────────
+  {
+    const rowsByStart = [
+      { id: 's-100', started_at: 100 },
+      { id: 's-200', started_at: 200 },
+      { id: 's-300', started_at: 300 }
+    ]
+    const cut = __internals.sessionsCreatedUpTo(rowsByStart, 's-200')
+
+    check(
+      'the cut is by CREATION, and it includes the row it was opened on',
+      cut.map(r => r.id).join(',') === 's-100,s-200',
+      cut.map(r => r.id).join(',')
+    )
+    check(
+      'a row with no start time hides ONLY itself (never the whole list)',
+      __internals
+        .sessionsCreatedUpTo([{ id: 'a', started_at: 0 }, { id: 'b', started_at: 500 }], 'a')
+        .map(r => r.id)
+        .join(',') === 'a',
+      'an unknown timestamp swept rows it could not place'
+    )
+    check(
+      'hiding a batch is ONE store write and keeps what was already hidden',
+      (() => {
+        __internals.$hiddenSessions.set({})
+        __internals.setSessionHidden('gone', 'keep-me', true)
+        __internals.hideSessions('gone', ['a', 'b', 'a'])
+
+        return (__internals.$hiddenSessions.get().gone || []).join(',') === 'keep-me,a,b'
+      })(),
+      JSON.stringify(__internals.$hiddenSessions.get())
+    )
+    __internals.$hiddenSessions.set({})
+  }
+
   // ── the render ────────────────────────────────────────────────────────────
   const nowS = Math.floor(Date.now() / 1000)
   const flatRows = [
@@ -8469,6 +8515,50 @@ h.rest.byProfile = {}
   const boxAt = boxedMarkup.indexOf('data-group-profile="zulu"')
   const boxRow = boxedMarkup.slice(boxedMarkup.indexOf('data-session="z-1"'))
 
+  // ── the two-line row, and a group you can drag ────────────────────────────
+  check(
+    'a row carries the LAST LINE of its conversation under the title',
+    /data-session-preview="z-1"[^>]*>y</.test(flatMarkup) &&
+      /data-session-preview="d-1"[^>]*>x</.test(flatMarkup),
+    flatMarkup.slice(flatMarkup.indexOf('data-session-preview'), flatMarkup.indexOf('data-session-preview') + 200)
+  )
+  check(
+    'a row with nothing said in it draws NO second line',
+    (() => {
+      h.queryResults['perso|sessions|default|zulu|60'] = {
+        data: { zulu: [{ id: 'quiet-1', last_active: nowS - 60, preview: '', title: 'Quiet' }] },
+        error: null,
+        isError: false,
+        isPending: false
+      }
+      const quiet = renderToStaticMarkup(pane.render())
+      h.queryResults['perso|sessions|default|zulu|60'] = {
+        data: { zulu: [{ id: 'z-1', last_active: nowS - 900, preview: 'y', title: 'Zulu chat' }] },
+        error: null,
+        isError: false,
+        isPending: false
+      }
+
+      return !quiet.includes('data-session-preview')
+    })(),
+    'an empty preview still drew its band'
+  )
+  check(
+    'the row is taller than the old one (4/4 padding plus the second line)',
+    /padding-bottom:4px;padding-top:4px/.test(flatMarkup),
+    'row padding moved'
+  )
+  check(
+    'the group heading is DRAGGABLE (data-item-drag on the heading)',
+    (() => {
+      __internals.createSessionGroup('zulu', 'Drag me', ['z-1'])
+      const dragMarkup = renderToStaticMarkup(pane.render())
+      __internals.$sessionGroups.set({})
+
+      return /data-item-drag="sessionGroup"/.test(dragMarkup)
+    })(),
+    'no drag handle on the group heading'
+  )
   check(
     'a box puts its profile picture on the HEADING, before the name',
     boxAt > 0 &&
