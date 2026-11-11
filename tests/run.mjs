@@ -8812,6 +8812,90 @@ h.rest.byProfile = {}
   }
 }
 
+
+// ── the dividers INSIDE a box (Pedro, 2026-11-11) ───────────────────────────
+// "include the dividers inside the groups": a box files sessions by hand; it is
+// not a place to lose what needs his eyes.
+{
+  const nowB = Math.floor(Date.now() / 1000)
+  const stateRows = [
+    { id: 'in-read', last_active: nowB - 5000, preview: 'r', title: 'Read one' },
+    { id: 'in-run', last_active: nowB - 60, preview: 'w', title: 'Running one' },
+    { id: 'in-wait', last_active: nowB - 900, preview: 'u', title: 'Waiting one' }
+  ]
+  const split = __internals.bucketSessions(stateRows, {
+    'in-read': 'idle',
+    'in-run': 'working',
+    'in-wait': 'needs-input'
+  })
+
+  check(
+    'a box splits into the same three buckets, in divider order',
+    split.map(group => `${group.bucket}:${group.rows.map(r => r.id).join('|')}`).join(' ') ===
+      'unread:in-wait running:in-run read:in-read',
+    split.map(group => `${group.bucket}:${group.rows.map(r => r.id).join('|')}`).join(' ')
+  )
+  check(
+    'a bucket with no members is dropped, not drawn empty',
+    __internals.bucketSessions(stateRows, { 'in-read': 'idle', 'in-run': 'idle', 'in-wait': 'idle' })
+      .map(group => group.bucket)
+      .join(',') === 'read',
+    'an empty bucket survived'
+  )
+
+  h.queryResults['perso|roster'] = {
+    data: [{ hasAvatar: false, label: 'Zulu', lastActiveMs: nowB * 1000, name: 'zulu', preview: 'x' }],
+    error: null,
+    isError: false,
+    isPending: false
+  }
+  h.queryResults['perso|sessions|zulu|60'] = {
+    data: { zulu: stateRows },
+    error: null,
+    isError: false,
+    isPending: false
+  }
+  __internals.$sessionGroups.set({})
+  __internals.$hiddenSessions.set({})
+  const boxGroupId = __internals.createSessionGroup(
+    'zulu',
+    'Mixed box',
+    stateRows.map(row => row.id)
+  )
+  __internals.$sessionStates.set({ 'in-read': 'idle', 'in-run': 'working', 'in-wait': 'needs-input' })
+  const boxed = renderToStaticMarkup(pane.render())
+
+  const inside = [...boxed.matchAll(/data-divider="([^"]+)" data-divider-in="([^"]*)"/g)]
+
+  check(
+    'the box draws its members under Unread → Running → Read',
+    inside.map(m => m[1]).join(',') === 'unread,running,read' &&
+      inside.every(m => m[2] === String(boxGroupId)),
+    JSON.stringify(inside.map(m => [m[1], m[2]]))
+  )
+  check(
+    'a boxed row is not also drawn in the list’s own divider',
+    [...boxed.matchAll(/data-divider="([^"]+)"/g)].length === 3,
+    'a boxed row leaked into the flat list'
+  )
+  check(
+    'a one-bucket box still labels its bucket',
+    (() => {
+      __internals.$sessionGroups.set({})
+      const single = __internals.createSessionGroup('zulu', 'All read', ['in-read'])
+      __internals.$sessionStates.set({ 'in-read': 'idle' })
+      const one = renderToStaticMarkup(pane.render())
+      __internals.$sessionStates.set({})
+
+      return new RegExp(`data-divider="read" data-divider-in="${single}"`).test(one)
+    })(),
+    'a one-bucket box drew no divider'
+  )
+
+  __internals.$sessionGroups.set({})
+  __internals.$sessionStates.set({})
+}
+
 const failedNow = results.filter(r => !r.ok)
 
 console.log(`\n${results.length - failedNow.length}/${results.length} passed`)

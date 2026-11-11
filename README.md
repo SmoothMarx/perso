@@ -21,7 +21,7 @@ dashboard backend for the two reads the SDK cannot reach.
 | 🗒️ **One flat list** | Every profile's sessions merged, newest activity first — no expanding, no per-profile rows |
 | 🖼️ **Who it belongs to** | Status dot → the profile's picture → the title → its name, on every row |
 | 💬 **Two-line rows** | The title, and under it the last line of that conversation — a row tall enough to read at a glance |
-| 🗂️ **Dividers** | The list is cut into **Unread**, **Running** and **Read** — what needs your eyes, what is working, what you have already seen |
+| 🗂️ **Dividers** | The list is cut into **Unread**, **Running** and **Read** — what needs your eyes, what is working, what you have already seen — and each group is split the same way inside its box |
 | 🙈 **Hide all up to here** | Right-click a session → both it and everything **created before it, in every profile**, leave the Perso view (reversible from the hidden toggle) |
 | 🟡 **Status lights** | Per session: amber waiting on you, blue working, emerald unread — the pane paints the session's own dot |
 | 📄 **A page, then a door** | 50 rows, then *Show more (n)* — the row just past the page is always reachable |
@@ -62,8 +62,13 @@ Below the boxes the list is cut into three **dividers**:
 
 Inside a divider the order is strictly by activity — newest first — with a total
 tiebreak (profile, then id) so two rows at the same second cannot swap places
-between polls. Inside a box the members keep their own order, and a box never
-repeats the profile picture or name its heading already shows.
+between polls.
+
+A box gets the same three dividers inside it: a grouped session is still unread,
+running or read, and a box is not a place to lose that. It is the one place a
+box's own filing order gives way — inside, the question is again "what needs my
+eyes". A box never repeats the profile picture or name its heading already
+shows.
 
 ## Install
 

@@ -6862,6 +6862,28 @@ const BUCKETS = ['unread', 'running', 'read']
 const BUCKET_LABEL_KEY = { read: 'readSection', running: 'runningSection', unread: 'unreadSection' }
 const BUCKET_RANK = { unread: 0, running: 1, read: 2 }
 
+/** One box's members, split into the SAME three dividers the list uses, in
+ *  divider order and by activity inside each (Pedro, 2026-11-11: "include the
+ *  dividers inside the groups").
+ *
+ *  This is the one place a box's own order is overridden: a box files its
+ *  members by hand, but inside it the question is still "what needs my eyes".
+ *  A bucket with no members draws nothing.
+ */
+function bucketSessions(sessions, states) {
+  const list = Array.isArray(sessions) ? sessions : []
+  const byActivity = (a, b) =>
+    sessionActivityMs(b) - sessionActivityMs(a) ||
+    String(a?.id || '').localeCompare(String(b?.id || ''))
+
+  return BUCKETS.map(bucket => ({
+    bucket,
+    rows: list
+      .filter(session => sessionBucket(states?.[String(session?.id)]) === bucket)
+      .sort(byActivity)
+  })).filter(group => group.rows.length)
+}
+
 /** When a row happened, in ms. `session.list` carries `last_active` in unix
  *  SECONDS — the one unit `secondsToMs` speaks — and a session the gateway could
  *  not date falls back to its start, then to the epoch. A row that sorts last is
@@ -6998,6 +7020,43 @@ function flatSessionItems({ byProfile, groups, hidden, links, profiles, released
       b.at - a.at ||
       String(a.profile).localeCompare(String(b.profile)) ||
       idOf(a).localeCompare(idOf(b))
+  )
+}
+
+/** A labelled divider. `inside` is the group it belongs to, if any: a box's
+ *  divider is indented to the rows it separates and carries the box's id so the
+ *  two kinds are never confused.
+ */
+function BucketDivider({ bucket, count, inside, t }) {
+  return jsxs(
+    'div',
+    {
+      'data-divider': bucket,
+      'data-divider-in': inside ? String(inside) : undefined,
+      className: inside
+        ? 'mt-1 flex min-w-0 items-center gap-1.5 border-t border-(--ui-stroke-secondary) px-1 pt-1.5 pb-0.5'
+        : 'mt-1 flex min-w-0 items-center gap-1.5 border-t border-(--ui-stroke-secondary) px-2 pt-2 pb-0.5',
+      children: [
+        jsx(
+          'span',
+          {
+            className:
+              'shrink-0 text-[0.625rem] font-semibold uppercase tracking-wider text-(--ui-text-quaternary)',
+            children: t(BUCKET_LABEL_KEY[bucket])
+          },
+          'label'
+        ),
+        jsx(
+          'span',
+          {
+            className: 'shrink-0 text-[0.625rem] text-(--ui-text-quaternary)',
+            children: String(count)
+          },
+          'count'
+        )
+      ]
+    },
+    `divider-${inside || 'list'}-${bucket}`
   )
 }
 
@@ -7181,22 +7240,7 @@ function PersoList({
             {
               className: 'grid min-w-0 grid-cols-1',
               children: [
-                jsxs('div', {
-                  'data-divider': item.bucket,
-                  className:
-                    'mt-1 flex min-w-0 items-center gap-1.5 border-t border-(--ui-stroke-secondary) px-2 pt-2 pb-0.5',
-                  children: [
-                    jsx('span', {
-                      className:
-                        'shrink-0 text-[0.625rem] font-semibold uppercase tracking-wider text-(--ui-text-quaternary)',
-                      children: t(BUCKET_LABEL_KEY[item.bucket])
-                    }, 'label'),
-                    jsx('span', {
-                      className: 'shrink-0 text-[0.625rem] text-(--ui-text-quaternary)',
-                      children: String(count)
-                    }, 'count')
-                  ]
-                }, `divider-${item.bucket}`),
+                jsx(BucketDivider, { bucket: item.bucket, count, t }, `divider-${item.bucket}`),
                 withCut(item.profile, item.session, row)
               ]
             },
@@ -7273,35 +7317,45 @@ function PersoList({
               ),
           block.collapsed
             ? null
-            : block.sessions.map(session =>
+            : // The same three dividers, inside the box: a grouped session is
+              // still unread, running or read, and a box is not a place to lose
+              // that.
+              bucketSessions(block.sessions, states).flatMap(group => [
                 jsx(
-                  'div',
-                  {
-                    // `children:`, NOT the third argument: `jsx(type, props, key)`
-                    // takes the KEY there, so an element passed positionally is
-                    // coerced into a key and the row renders as an empty div
-                    // (every grouped session vanished this way).
-                    children: withCut(
-                      item.profile,
-                      session,
-                      jsx(PersoRow, {
-                        aproposGroup: block.apropos === true,
-                        byProfile,
-                        groupId: block.id,
-                        groupState,
-                        handlers,
-                        hideProfile: !spanning,
-                        nowMs,
-                        profile: item.profile,
-                        profileRow: profileRows?.[item.profile],
-                        session
-                      })
-                    ),
-                    className: 'grid min-w-0 grid-cols-1'
-                  },
-                  `grow-${item.profile}-${session?.id}`
+                  BucketDivider,
+                  { bucket: group.bucket, count: group.rows.length, inside: block.id, t },
+                  `div-${block.id}-${group.bucket}`
+                ),
+                ...group.rows.map(session =>
+                  jsx(
+                    'div',
+                    {
+                      // `children:`, NOT the third argument: `jsx(type, props, key)`
+                      // takes the KEY there, so an element passed positionally is
+                      // coerced into a key and the row renders as an empty div
+                      // (every grouped session vanished this way).
+                      children: withCut(
+                        item.profile,
+                        session,
+                        jsx(PersoRow, {
+                          aproposGroup: block.apropos === true,
+                          byProfile,
+                          groupId: block.id,
+                          groupState,
+                          handlers,
+                          hideProfile: !spanning,
+                          nowMs,
+                          profile: item.profile,
+                          profileRow: profileRows?.[item.profile],
+                          session
+                        })
+                      ),
+                      className: 'grid min-w-0 grid-cols-1'
+                    },
+                    `grow-${item.profile}-${session?.id}`
+                  )
                 )
-              )
+              ])
         ].filter(Boolean)
 
         return jsx(
@@ -12968,6 +13022,7 @@ export const __internals = {
   hideSessions,
   loadArchivedRows,
   $sessionStates,
+  bucketSessions,
   sessionActivityMs,
   sessionBucket,
   cutRowsByMoment,
