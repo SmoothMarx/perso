@@ -209,6 +209,16 @@ export const host = {
 }
 
 /** The unread store behind `SessionStatusDot`'s emerald dot. */
+/** The app's own "he opened it" door (see sdk/index.ts: `ackStoredSessionId`
+ *  clears the emerald dot). Recorded so a test can prove the pane tells the app
+ *  as well as its own watermark. */
+export function ackStoredSessionId(storedSessionId, profileHint) {
+  const h = harness()
+  h.acks = [...(h.acks || []), { profile: profileHint, id: storedSessionId }]
+
+  return undefined
+}
+
 export function markSessionUnreadFinished(storedSessionId, profileHint) {
   harness().unread.push({ id: storedSessionId, profile: profileHint })
 }

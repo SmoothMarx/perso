@@ -87,6 +87,7 @@
  */
 
 import {
+  ackStoredSessionId,
   Button,
   Codicon,
   Dialog,
@@ -458,6 +459,9 @@ const SESSIONS_PER_PROFILE = 10
  *  is one item, so its members are never split), and "Show more" adds another
  *  page. It is a display cap, never a filter — the fetch is wider than the page
  *  (FLAT_FETCH per profile) so a global sort has something to sort. */
+/** Bounded: this is a view watermark, not history. Oldest entries go first. */
+const SEEN_KEY = 'perso-seen-v1'
+const SEEN_MAX = 400
 const FLAT_PAGE = 50
 const FLAT_FETCH = 60
 /** The picture on a session row. Small enough to repeat on every line, large
@@ -617,6 +621,20 @@ const EXPANDED_KEY = 'messenger-expanded-v1'
 let expandedProfiles = {}
 const $expanded = atom({})
 
+/** WHICH ROWS HE HAS ACTUALLY READ: `{stored id: activity ms at the moment he
+ *  opened it}`.
+ *
+ *  Core's own `unread` flag is a `last_read_at` watermark, and the app does not
+ *  keep it current for a session opened from a pane (the "Android" row sat under
+ *  Unread with `last_read_at` nineteen days old, Pedro 2026-11-11). The divider
+ *  asks one question — "has he opened this since its last activity?" — and the
+ *  pane is the one surface that KNOWS when a row was opened, so it keeps that
+ *  answer itself: a row is read once its activity is at or before the moment he
+ *  opened it, and a later turn makes it unread again, which is the real point.
+ */
+let seenSessions = {}
+const $seen = atom({})
+
 /** Only OPEN profiles are stored: closed is the default, so a blob holding
  *  `false` for every profile the user ever tried would be noise that grows with
  *  the roster. Anything truthy opens the row (`{zulu: 'yes'}` is a yes). */
@@ -746,6 +764,8 @@ function loadPrefs() {
     applyPref(APROPOS_KEY, store?.get?.(APROPOS_KEY, {}))
     expandedProfiles = normalizeExpanded(store?.get?.(EXPANDED_KEY, {}))
     $expanded.set(expandedProfiles)
+    seenSessions = normalizeSeen(store?.get?.(SEEN_KEY, {}))
+    $seen.set(seenSessions)
   } catch {
     // No storage: prefs hold for this window only, which beats throwing.
   }
@@ -5825,6 +5845,9 @@ function SessionRow({
   groups,
   onMoveGroup,
   onNewGroup,
+  // Optional: the caller wants to know the row was OPENED (the flat list records
+  // the read watermark here). Absent, the row opens exactly as before.
+  onOpen,
   profile,
   // The roster ROW of the profile this session belongs to (its picture, its
   // label, its picked colour). Only the flat Perso list has one to hand: the
@@ -6071,7 +6094,7 @@ function SessionRow({
           onClick: guardClick(
             selecting
               ? () => onToggleSelect()
-              : () => openSessionInProfile(profile, profileSessions, openId)
+              : () => (onOpen ? onOpen() : openSessionInProfile(profile, profileSessions, openId))
           ),
           children: [
             selecting
@@ -6840,6 +6863,53 @@ function SessionGroupHeading({
 // the parent it was seeded from), `sessionGroupBlocks` (a group box),
 // `SessionRow` (the row, its marks and its whole menu).
 
+function normalizeSeen(raw) {
+  const out = {}
+
+  for (const [id, at] of Object.entries(raw && typeof raw === 'object' ? raw : {})) {
+    const when = Number(at)
+
+    if (id && Number.isFinite(when) && when > 0) {
+      out[String(id)] = when
+    }
+  }
+
+  return out
+}
+
+/** He opened this row at `activeMs` (its own last activity). Idempotent, never
+ *  moves backwards — an older activity replayed by a poll must not un-read a
+ *  row he has already seen. */
+function noteSeen(storedId, activeMs) {
+  const id = String(storedId || '')
+  const at = Number(activeMs) || 0
+
+  if (!id || at <= 0) {
+    return seenSessions
+  }
+
+  if ((seenSessions[id] || 0) >= at) {
+    return seenSessions
+  }
+
+  const next = { ...seenSessions, [id]: at }
+  const entries = Object.entries(next)
+
+  if (entries.length > SEEN_MAX) {
+    entries.sort((a, b) => Number(a[1]) - Number(b[1]))
+
+    for (const [old] of entries.slice(0, entries.length - SEEN_MAX)) {
+      delete next[old]
+    }
+  }
+
+  seenSessions = next
+  $seen.set(next)
+  persist(SEEN_KEY, next)
+
+  return next
+}
+
 /** Which divider a session belongs under.
  *
  *  Pedro, 2026-11-11: "Unread (which is a session that has finished running, but
@@ -6849,12 +6919,24 @@ function SessionGroupHeading({
  *  A session WAITING on him (`needs-input`) is not running and is certainly not
  *  read, so it files under Unread — the bucket that means "look at me".
  */
-function sessionBucket(state) {
+function sessionBucket(state, { activeMs = 0, seenAt = 0 } = {}) {
   if (state === 'working') {
     return 'running'
   }
 
-  return state === 'unread' || state === 'needs-input' ? 'unread' : 'read'
+  if (state === 'needs-input') {
+    // Waiting on his answer: not running, and certainly not read.
+    return 'unread'
+  }
+
+  if (state !== 'unread') {
+    return 'read'
+  }
+
+  // Core says unread. The pane knows better when it watched him open the row:
+  // activity at or before the moment he opened it has been read. A turn that
+  // landed AFTER that moment is genuinely unread again.
+  return seenAt > 0 && activeMs > 0 && activeMs <= seenAt ? 'read' : 'unread'
 }
 
 /** The dividers, in the order they are drawn. */
@@ -6870,17 +6952,22 @@ const BUCKET_RANK = { unread: 0, running: 1, read: 2 }
  *  members by hand, but inside it the question is still "what needs my eyes".
  *  A bucket with no members draws nothing.
  */
-function bucketSessions(sessions, states) {
+function bucketSessions(sessions, states, seen, focusedId) {
   const list = Array.isArray(sessions) ? sessions : []
   const byActivity = (a, b) =>
     sessionActivityMs(b) - sessionActivityMs(a) ||
     String(a?.id || '').localeCompare(String(b?.id || ''))
+  const bucketOf = session => {
+    const id = String(session?.id || '')
+    const activeMs = sessionActivityMs(session)
+    const seenAt = id && id === String(focusedId || '') ? activeMs : Number(seen?.[id]) || 0
+
+    return sessionBucket(states?.[id], { activeMs, seenAt })
+  }
 
   return BUCKETS.map(bucket => ({
     bucket,
-    rows: list
-      .filter(session => sessionBucket(states?.[String(session?.id)]) === bucket)
-      .sort(byActivity)
+    rows: list.filter(session => bucketOf(session) === bucket).sort(byActivity)
   })).filter(group => group.rows.length)
 }
 
@@ -6912,9 +6999,19 @@ function flatProfileItems({
   searching,
   sessions,
   sortMode = 'activity',
-  states
+  states,
+  seen,
+  focusedId
 }) {
-  const bucketOf = session => sessionBucket(states?.[String(session?.id)])
+  const bucketOf = session => {
+    const id = String(session?.id || '')
+    const activeMs = sessionActivityMs(session)
+    // The session on screen in front of him is being read right now — no write
+    // needed, and no window where it is both open and "unread".
+    const seenAt = id && id === String(focusedId || '') ? activeMs : Number(seen?.[id]) || 0
+
+    return sessionBucket(states?.[id], { activeMs, seenAt })
+  }
   const list = Array.isArray(sessions) ? sessions : []
   // A child draws under its parent — the roster's own rule, so the two panes
   // cannot disagree about which rows exist or where a derived chat sits.
@@ -6987,7 +7084,19 @@ function flatProfileItems({
  *  not swap places on every poll — a list that reshuffles by itself reads as
  *  activity that never happened, which is the one thing a strict activity order
  *  must never do. */
-function flatSessionItems({ byProfile, groups, hidden, links, profiles, released, revealed, searching, states }) {
+function flatSessionItems({
+  byProfile,
+  focusedId,
+  groups,
+  hidden,
+  links,
+  profiles,
+  released,
+  revealed,
+  searching,
+  seen,
+  states
+}) {
   const items = []
 
   for (const profile of profiles || []) {
@@ -7000,7 +7109,9 @@ function flatSessionItems({ byProfile, groups, hidden, links, profiles, released
         released: released?.[String(profile)],
         revealed: Boolean(revealed),
         searching,
+        focusedId,
         sessions: byProfile?.[String(profile)],
+        seen,
         states
       })
     )
@@ -7104,6 +7215,10 @@ function PersoRow({
             sessions: byProfile?.[String(profile)] || []
           })
         ),
+      // Opening a row is the act of reading it: record the moment, and tell the
+      // app's own unread store (the SDK's documented door for exactly this) so
+      // the dot and the divider cannot disagree.
+      onOpen: () => handlers.onOpenRow?.(profile, session, byProfile?.[String(profile)]),
       onMoveGroup: payload => handlers.onMoveGroup(profile, payload),
       onHideUpTo: handlers.onHideUpTo,
       onNewGroup: () => handlers.onNewGroup(profile, [session?.id]),
@@ -7162,9 +7277,14 @@ function PersoList({
   // The dividers are made of this: one state per session, from the same sweep
   // that paints the dots.
   const states = useValue($sessionStates)
+  // What he has opened, and what is open RIGHT NOW (the app's own focus): the
+  // two facts that turn core's stale `unread` into an honest Read.
+  const seen = useValue($seen)
+  const focusedId = useValue(host.state.focusedStoredSessionId)
   const profiles = Object.keys(byProfile || {}).sort()
   const items = flatSessionItems({
     byProfile,
+    focusedId,
     groups: groupState,
     hidden: hiddenState,
     links,
@@ -7172,6 +7292,7 @@ function PersoList({
     released: releasedState,
     revealed: revealHidden,
     searching,
+    seen,
     states
   })
   const limit = Math.max(1, Number(cap) || FLAT_PAGE)
@@ -7320,7 +7441,7 @@ function PersoList({
             : // The same three dividers, inside the box: a grouped session is
               // still unread, running or read, and a box is not a place to lose
               // that.
-              bucketSessions(block.sessions, states).flatMap(group => [
+              bucketSessions(block.sessions, states, seen, focusedId).flatMap(group => [
                 jsx(
                   BucketDivider,
                   { bucket: group.bucket, count: group.rows.length, inside: block.id, t },
@@ -12446,9 +12567,20 @@ function MessengerPane() {
 
       return hidden
     }
+    // Opening a row: read it, remember that, and let the app's own unread store
+    // hear it too — the dot is core's component and paints what that store says.
+    const openRow = (profile, session, sessions) => {
+      const id = sessionIdOf(session) || String(session?.id || '')
+
+      noteSeen(id, sessionActivityMs(session))
+      ackStoredSessionId?.(id, profile)
+
+      return openSessionInProfile(profile, sessions, id)
+    }
     const persoHandlers = {
       editingSession,
       onHideUpTo: hideUpTo,
+      onOpenRow: openRow,
       onArchiveUpTo: openArchiveUpTo,
       onCreateAproposGroup: entry => {
         const entries = ticks.length ? ticks : [entry]
@@ -13021,8 +13153,10 @@ export const __internals = {
   flatSessionItems,
   hideSessions,
   loadArchivedRows,
+  $seen,
   $sessionStates,
   bucketSessions,
+  noteSeen,
   sessionActivityMs,
   sessionBucket,
   cutRowsByMoment,

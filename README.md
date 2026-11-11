@@ -56,7 +56,7 @@ Below the boxes the list is cut into three **dividers**:
 
 | Divider | What lands there |
 | --- | --- |
-| **Unread** | finished running and not opened since — plus anything **waiting on your answer**, which is neither running nor read |
+| **Unread** | finished running and **not opened since** — the pane remembers when you opened a row, so a stale backend watermark cannot trap a session here. Anything **waiting on your answer** lands here too, which is neither running nor read |
 | **Running** | working right now |
 | **Read** | everything else |
 

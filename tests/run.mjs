@@ -8444,6 +8444,55 @@ h.rest.byProfile = {}
         .join(',') === 'zulu,matt',
       'the cut stayed inside one profile'
     )
+    // ── a row he has opened is READ, whatever core's watermark says ─────────
+    // Pedro, 2026-11-11: "the android session ... doesn't leave the unread
+    // section, even though it's already been read". Core's `unread` is a
+    // `last_read_at` watermark the app never kept current (that row's was 19
+    // days old), so the pane keeps its own: activity at or before the moment he
+    // opened the row has been seen.
+    check(
+      'a row whose activity is at or before the moment he opened it is READ',
+      __internals.sessionBucket('unread', { activeMs: 1000, seenAt: 1000 }) === 'read' &&
+        __internals.sessionBucket('unread', { activeMs: 900, seenAt: 1000 }) === 'read',
+      'a seen row stayed unread'
+    )
+    check(
+      '…but a turn that landed AFTER he opened it is unread again',
+      __internals.sessionBucket('unread', { activeMs: 1200, seenAt: 1000 }) === 'unread',
+      'a newer turn was read without him'
+    )
+    check(
+      'a row he never opened stays unread, and running/waiting keep their bucket',
+      __internals.sessionBucket('unread', { activeMs: 1000, seenAt: 0 }) === 'unread' &&
+        __internals.sessionBucket('working', { activeMs: 1000, seenAt: 9999 }) === 'running' &&
+        __internals.sessionBucket('needs-input', { activeMs: 1000, seenAt: 9999 }) === 'unread',
+      'the bucket rule changed shape'
+    )
+    check(
+      'the watermark records the moment, and never moves backwards',
+      (() => {
+        __internals.$seen.set({})
+        __internals.noteSeen('seen-1', 5000)
+        const first = __internals.$seen.get()['seen-1']
+        __internals.noteSeen('seen-1', 4000)
+        __internals.noteSeen('seen-x', 0)
+
+        return (
+          first === 5000 &&
+          __internals.$seen.get()['seen-1'] === 5000 &&
+          !('seen-x' in __internals.$seen.get()) &&
+          h.storage['perso-seen-v1']?.['seen-1'] === 5000
+        )
+      })(),
+      JSON.stringify(__internals.$seen.get())
+    )
+    check(
+      'opening a row tells the app’s own unread store as well as the pane’s',
+      SRC.includes('noteSeen(id, sessionActivityMs(session))') &&
+        SRC.includes('ackStoredSessionId?.(id, profile)'),
+      'the open path stopped recording what he read'
+    )
+
     check(
       'the pane runs the hide over EVERY profile, not just the row’s own',
       SRC.includes("cutRowsByMoment(list, name, at, { field: 'started', inclusive: true })") &&
@@ -8663,6 +8712,45 @@ h.rest.byProfile = {}
       keys: Object.keys(h.queryResults).filter(k => k.startsWith('perso|sessions')),
       states: __internals.$sessionStates.get()
     })
+  )
+  check(
+    '…and the DRAW honours it: a seen row leaves the Unread divider',
+    (() => {
+      const savedRoster = h.queryResults['perso|roster']
+      const savedSessions = h.queryResults['perso|sessions|zulu|60']
+
+      h.queryResults['perso|roster'] = {
+        data: [{ hasAvatar: false, label: 'Zulu', lastActiveMs: nowS * 1000, name: 'zulu', preview: 'x' }],
+        error: null,
+        isError: false,
+        isPending: false
+      }
+      h.queryResults['perso|sessions|zulu|60'] = {
+        data: { zulu: [{ id: 'read-me', last_active: nowS - 300, preview: 'p', title: 'Android' }] },
+        error: null,
+        isError: false,
+        isPending: false
+      }
+      __internals.$sessionGroups.set({})
+      __internals.$hiddenSessions.set({})
+      __internals.$sessionStates.set({ 'read-me': 'unread' })
+      __internals.$seen.set({})
+
+      const unreadMarkup = renderToStaticMarkup(pane.render())
+      const before = [...unreadMarkup.matchAll(/data-divider="([^"]+)"/g)].map(m => m[1]).join(',')
+
+      __internals.noteSeen('read-me', (nowS - 300) * 1000)
+      const seenMarkup = renderToStaticMarkup(pane.render())
+      const after = [...seenMarkup.matchAll(/data-divider="([^"]+)"/g)].map(m => m[1]).join(',')
+
+      __internals.$seen.set({})
+      __internals.$sessionStates.set({})
+      if (savedRoster) h.queryResults['perso|roster'] = savedRoster
+      if (savedSessions) h.queryResults['perso|sessions|zulu|60'] = savedSessions
+
+      return before === 'unread' && after === 'read'
+    })(),
+    'the row did not move out of Unread'
   )
   check(
     'a bucket with nothing in it draws no divider (and no empty label)',
