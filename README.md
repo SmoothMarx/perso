@@ -21,6 +21,7 @@ dashboard backend for the two reads the SDK cannot reach.
 | 🗒️ **One flat list** | Every profile's sessions merged, newest activity first — no expanding, no per-profile rows |
 | 🖼️ **Who it belongs to** | Status dot → the profile's picture → the title → its name, on every row |
 | 💬 **Two-line rows** | The title, and under it the last line of that conversation — a row tall enough to read at a glance |
+| 🗂️ **Dividers** | The list is cut into **Unread**, **Running** and **Read** — what needs your eyes, what is working, what you have already seen |
 | 🙈 **Hide all up to here** | Right-click a session → both it and everything **created before it** leave the Perso view (reversible from the hidden toggle) |
 | 🟡 **Status lights** | Per session: amber waiting on you, blue working, emerald unread — the pane paints the session's own dot |
 | 📄 **A page, then a door** | 50 rows, then *Show more (n)* — the row just past the page is always reachable |
@@ -51,9 +52,18 @@ dashboard backend for the two reads the SDK cannot reach.
 under a busy morning's traffic: every box sits above the loose list, and the boxes
 order themselves by their newest member so they do not jump around.
 
-Below them, every ungrouped session is strictly by activity — newest first — with
-a total tiebreak (profile, then id) so two rows at the same second cannot swap
-places between polls. Inside a box the members keep their own order.
+Below the boxes the list is cut into three **dividers**:
+
+| Divider | What lands there |
+| --- | --- |
+| **Unread** | finished running and not opened since — plus anything **waiting on your answer**, which is neither running nor read |
+| **Running** | working right now |
+| **Read** | everything else |
+
+Inside a divider the order is strictly by activity — newest first — with a total
+tiebreak (profile, then id) so two rows at the same second cannot swap places
+between polls. Inside a box the members keep their own order, and a box never
+repeats the profile picture or name its heading already shows.
 
 ## Install
 

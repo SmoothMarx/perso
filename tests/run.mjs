@@ -1014,7 +1014,9 @@ check('the expansion query polls like the roster', expandedQuery().refetchInterv
 // app's own surfaces stay unlabelled so a desktop session carries no noise.
 check(
   'the list track is minmax(0,1fr) — a nowrap cell can never set the pane width',
-  markup.includes('grid min-w-0 grid-cols-1 gap-0.5 px-1.5') &&
+  // The flat list's own class: same single-column track, a wider row gap (2px
+  // read as a wall once rows went two-line).
+  markup.includes('grid min-w-0 grid-cols-1 gap-1.5 px-1.5') &&
     !markup.includes('class="grid min-w-0"')
 )
 check(
@@ -8515,7 +8517,148 @@ h.rest.byProfile = {}
   const boxAt = boxedMarkup.indexOf('data-group-profile="zulu"')
   const boxRow = boxedMarkup.slice(boxedMarkup.indexOf('data-session="z-1"'))
 
+  // ── the dividers: Unread · Running · Read ────────────────────────────────
+  check(
+    'a session files under Unread / Running / Read from its own state',
+    __internals.sessionBucket('working') === 'running' &&
+      __internals.sessionBucket('unread') === 'unread' &&
+      // A session WAITING on him is not running and certainly not read.
+      __internals.sessionBucket('needs-input') === 'unread' &&
+      __internals.sessionBucket('idle') === 'read' &&
+      __internals.sessionBucket(undefined) === 'read',
+    ['working', 'unread', 'needs-input', 'idle'].map(k => `${k}->${__internals.sessionBucket(k)}`).join(' ')
+  )
+
+  check(
+    'the divider outranks the clock: newest of all, a read row still draws last',
+    (() => {
+      const bucketed = __internals.flatSessionItems({
+        byProfile: {
+          zulu: [
+            mk('read-newest', 9000),
+            mk('run-mid', 5000),
+            mk('unread-oldest', 100)
+          ]
+        },
+        groups: {},
+        hidden: {},
+        links: {},
+        profiles: ['zulu'],
+        released: {},
+        revealed: false,
+        searching: false,
+        states: { 'read-newest': 'idle', 'run-mid': 'working', 'unread-oldest': 'needs-input' }
+      })
+
+      return (
+        bucketed.map(i => i.session.id).join(',') === 'unread-oldest,run-mid,read-newest' &&
+        bucketed.map(i => i.bucket).join(',') === 'unread,running,read'
+      )
+    })(),
+    'bucket order lost to activity order'
+  )
+
+  check(
+    'inside one divider the order is still strictly by activity',
+    __internals
+      .flatSessionItems({
+        byProfile: { zulu: [mk('a', 100), mk('b', 900), mk('c', 500)] },
+        groups: {},
+        hidden: {},
+        links: {},
+        profiles: ['zulu'],
+        released: {},
+        revealed: false,
+        searching: false,
+        states: { a: 'idle', b: 'idle', c: 'idle' }
+      })
+      .map(i => i.session.id)
+      .join(',') === 'b,c,a',
+    'activity order inside a bucket'
+  )
+
+  check(
+    'a group still sits ABOVE the dividers, whatever its members are doing',
+    (() => {
+      const withBox = __internals.flatSessionItems({
+        byProfile: { zulu: [mk('boxed', 100), mk('fresh', 9000)] },
+        groups: {
+          zulu: {
+            collapsed: [],
+            groups: [{ id: 'g1', name: 'Box', order: 0 }],
+            members: { boxed: 'g1' },
+            order: ['g1']
+          }
+        },
+        hidden: {},
+        links: {},
+        profiles: ['zulu'],
+        released: {},
+        revealed: false,
+        searching: false,
+        states: { fresh: 'idle', boxed: 'idle' }
+      })
+
+      return withBox[0]?.kind === 'group' && withBox[1]?.bucket === 'read'
+    })(),
+    'a box slipped below a divider'
+  )
+
   // ── the two-line row, and a group you can drag ────────────────────────────
+  check(
+    'the drawn list opens a labelled divider per bucket, in order',
+    (() => {
+      // One row per bucket: d-1 waits on him, z-1 is working, old-1 is read.
+      h.queryResults['perso|sessions|default|zulu|60'] = {
+        data: {
+          default: [{ id: 'd-1', last_active: nowS - 30, preview: 'x', title: 'Crabby chat' }],
+          zulu: [
+            { id: 'z-1', last_active: nowS - 900, preview: 'y', title: 'Zulu chat' },
+            { id: 'old-1', last_active: nowS - 20000, preview: 'z', title: 'Old chat' }
+          ]
+        },
+        error: null,
+        isError: false,
+        isPending: false
+      }
+      // A clean store: the group tests above leave boxes behind, and a box's
+      // members draw under the box (above every divider) rather than in a bucket.
+      __internals.$sessionGroups.set({})
+      __internals.$hiddenSessions.set({})
+      __internals.$sessionStates.set({ 'd-1': 'needs-input', 'z-1': 'working', 'old-1': 'idle' })
+      const mk2 = renderToStaticMarkup(pane.render())
+      const order = [...mk2.matchAll(/data-divider="([^"]+)"/g)].map(m => m[1])
+      __internals.$sessionStates.set({})
+
+      return (
+        order.join(',') === 'unread,running,read' &&
+        mk2.indexOf('>Unread<') > 0 &&
+        mk2.indexOf('>Running<') > 0 &&
+        mk2.indexOf('>Read<') > 0
+      )
+    })(),
+    JSON.stringify({
+      dividers: [...(() => { try { return renderToStaticMarkup(pane.render()) } catch (e) { return String(e) } })().matchAll(/data-divider="([^"]+)"/g)].map(m => m[1]),
+      keys: Object.keys(h.queryResults).filter(k => k.startsWith('perso|sessions')),
+      states: __internals.$sessionStates.get()
+    })
+  )
+  check(
+    'a bucket with nothing in it draws no divider (and no empty label)',
+    (() => {
+      h.queryResults['perso|sessions|default|zulu|60'] = {
+        data: { zulu: [{ id: 'z-1', last_active: nowS - 900, preview: 'y', title: 'Zulu chat' }] },
+        error: null,
+        isError: false,
+        isPending: false
+      }
+      const only = renderToStaticMarkup(pane.render())
+      const dividers = [...only.matchAll(/data-divider="([^"]+)"/g)].map(m => m[1])
+
+      return dividers.join(',') === 'read'
+    })(),
+    'an empty bucket drew a divider'
+  )
   check(
     'a row carries the LAST LINE of its conversation under the title',
     /data-session-preview="z-1"[^>]*>y</.test(flatMarkup) &&

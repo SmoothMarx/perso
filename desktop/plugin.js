@@ -2828,6 +2828,13 @@ const dotListCache = new Map()
  *  fetchRoster's poll and read by every ProfileRow. Empty until the first poll
  *  lands, which is what makes the fallback dot the initial state. */
 const $profileDots = atom({})
+/** Per-SESSION state, from the same sweep that feeds the profile dots:
+ *  `{sessionId: 'needs-input' | 'working' | 'unread' | 'idle'}`.
+ *
+ *  The flat list groups its rows under Unread / Running / Read, and that answer
+ *  has to come from ONE place — the same `dotStateFor` the dots are painted
+ *  from, or the divider and the dot beside a row could disagree. */
+const $sessionStates = atom({})
 
 /** The dot ONE session shows, from the two sources a plugin can read. The
  *  priority is core's own (`$sessionDotStateById`): a session blocked on a
@@ -2973,7 +2980,26 @@ async function fetchRoster() {
       )
     ])
 
-    $profileDots.set(rosterRollups(Object.fromEntries(lists), liveStatusMap(live)))
+    const liveMap = liveStatusMap(live)
+
+    $profileDots.set(rosterRollups(Object.fromEntries(lists), liveMap))
+
+    // …and the same read, per session (see $sessionStates): a session's own
+    // state is what the list's dividers are made of. Only ids the sweep actually
+    // saw are published — a missing id reads 'idle', which is the neutral bucket.
+    const sessionStates = {}
+
+    for (const profileRows of Object.values(Object.fromEntries(lists))) {
+      for (const session of profileRows || []) {
+        const id = String(session?.id || '')
+
+        if (id) {
+          sessionStates[id] = dotStateFor(liveMap[id], session?.unread === true)
+        }
+      }
+    }
+
+    $sessionStates.set(sessionStates)
   } catch {
     // Belt-and-braces: nothing here may take the roster down with it.
   }
@@ -6814,6 +6840,28 @@ function SessionGroupHeading({
 // the parent it was seeded from), `sessionGroupBlocks` (a group box),
 // `SessionRow` (the row, its marks and its whole menu).
 
+/** Which divider a session belongs under.
+ *
+ *  Pedro, 2026-11-11: "Unread (which is a session that has finished running, but
+ *  the user has not opened the session to read the latest message); Running (all
+ *  sessions currently working), Read".
+ *
+ *  A session WAITING on him (`needs-input`) is not running and is certainly not
+ *  read, so it files under Unread — the bucket that means "look at me".
+ */
+function sessionBucket(state) {
+  if (state === 'working') {
+    return 'running'
+  }
+
+  return state === 'unread' || state === 'needs-input' ? 'unread' : 'read'
+}
+
+/** The dividers, in the order they are drawn. */
+const BUCKETS = ['unread', 'running', 'read']
+const BUCKET_LABEL_KEY = { read: 'readSection', running: 'runningSection', unread: 'unreadSection' }
+const BUCKET_RANK = { unread: 0, running: 1, read: 2 }
+
 /** When a row happened, in ms. `session.list` carries `last_active` in unix
  *  SECONDS — the one unit `secondsToMs` speaks — and a session the gateway could
  *  not date falls back to its start, then to the epoch. A row that sorts last is
@@ -6841,8 +6889,10 @@ function flatProfileItems({
   revealed,
   searching,
   sessions,
-  sortMode = 'activity'
+  sortMode = 'activity',
+  states
 }) {
+  const bucketOf = session => sessionBucket(states?.[String(session?.id)])
   const list = Array.isArray(sessions) ? sessions : []
   // A child draws under its parent — the roster's own rule, so the two panes
   // cannot disagree about which rows exist or where a derived chat sits.
@@ -6856,7 +6906,13 @@ function flatProfileItems({
 
   if (searching) {
     // A search is about the needle, not about filing: no boxes, no anchoring.
-    return filed.map(session => ({ at: sessionActivityMs(session), kind: 'session', profile, session }))
+    return filed.map(session => ({
+      at: sessionActivityMs(session),
+      bucket: bucketOf(session),
+      kind: 'session',
+      profile,
+      session
+    }))
   }
 
   // The cap is the CALLER's: this list is capped once, globally (FLAT_PAGE), so
@@ -6869,7 +6925,13 @@ function flatProfileItems({
   for (const block of blocks) {
     if (!block.id) {
       for (const session of block.sessions) {
-        items.push({ at: sessionActivityMs(session), kind: 'session', profile, session })
+        items.push({
+          at: sessionActivityMs(session),
+          bucket: bucketOf(session),
+          kind: 'session',
+          profile,
+          session
+        })
       }
 
       continue
@@ -6903,7 +6965,7 @@ function flatProfileItems({
  *  not swap places on every poll — a list that reshuffles by itself reads as
  *  activity that never happened, which is the one thing a strict activity order
  *  must never do. */
-function flatSessionItems({ byProfile, groups, hidden, links, profiles, released, revealed, searching }) {
+function flatSessionItems({ byProfile, groups, hidden, links, profiles, released, revealed, searching, states }) {
   const items = []
 
   for (const profile of profiles || []) {
@@ -6916,18 +6978,23 @@ function flatSessionItems({ byProfile, groups, hidden, links, profiles, released
         released: released?.[String(profile)],
         revealed: Boolean(revealed),
         searching,
-        sessions: byProfile?.[String(profile)]
+        sessions: byProfile?.[String(profile)],
+        states
       })
     )
   }
 
   const idOf = item => (item.kind === 'group' ? `g:${item.block.id}` : `s:${item.session?.id}`)
-  // Groups first — always, whatever the clock says. Then activity, newest first.
+  // Groups first — always, whatever the clock says. Then the DIVIDERS
+  // (Unread, Running, Read — see sessionBucket), and inside one divider the
+  // activity order the pane has always had.
   const rank = item => (item.kind === 'group' ? 0 : 1)
+  const bucketRank = item => (item.kind === 'group' ? -1 : BUCKET_RANK[item.bucket] ?? 2)
 
   return items.sort(
     (a, b) =>
       rank(a) - rank(b) ||
+      bucketRank(a) - bucketRank(b) ||
       b.at - a.at ||
       String(a.profile).localeCompare(String(b.profile)) ||
       idOf(a).localeCompare(idOf(b))
@@ -7033,6 +7100,9 @@ function PersoList({
   const hiddenState = useValue($hiddenSessions)
   const links = useValue($apropos)
   useValue($sessionColors)
+  // The dividers are made of this: one state per session, from the same sweep
+  // that paints the dots.
+  const states = useValue($sessionStates)
   const profiles = Object.keys(byProfile || {}).sort()
   const items = flatSessionItems({
     byProfile,
@@ -7042,7 +7112,8 @@ function PersoList({
     profiles,
     released: releasedState,
     revealed: revealHidden,
-    searching
+    searching,
+    states
   })
   const limit = Math.max(1, Number(cap) || FLAT_PAGE)
   const drawn = items.slice(0, limit)
@@ -7071,31 +7142,63 @@ function PersoList({
   }
 
   return jsxs('div', {
-    // LIST_CLASS, not a bare grid: the gutter and the row gap are the list's own
-    // layout contract (and `grid-cols-1` is what stops a nowrap cell from
-    // setting the pane's minimum width).
-    className: LIST_CLASS,
+    // The list's own layout contract, with a wider GAP than the roster's: two-line
+    // rows at 39px read as a wall without air between them (Pedro, 2026-11-11:
+    // "give some more white space between rows"). `grid-cols-1` is also what
+    // stops a nowrap cell from setting the pane's minimum width.
+    className: 'grid min-w-0 grid-cols-1 gap-1.5 px-1.5',
     children: [
-      drawn.map(item => {
+      drawn.map((item, index) => {
         if (item.kind !== 'group') {
-          return jsx(
+          const prev = drawn[index - 1]
+          // A divider opens a bucket: the first loose row of the list, or the
+          // first row after a box, or the first row whose state changed. Boxes
+          // are above all three (Pedro: "groups remain above these dividers").
+          const opens =
+            !prev || prev.kind === 'group' || prev.bucket !== item.bucket
+          const count = drawn.filter(entry => entry.kind !== 'group' && entry.bucket === item.bucket).length
+          const row = jsx(
+            PersoRow,
+            {
+              byProfile,
+              groupId: null,
+              groupState,
+              handlers,
+              nowMs,
+              profile: item.profile,
+              profileRow: profileRows?.[item.profile],
+              session: item.session
+            }
+          )
+
+          if (!opens) {
+            return jsx('div', { className: 'grid min-w-0 grid-cols-1', children: withCut(item.profile, item.session, row) },
+              `flat-${item.profile}-${item.session?.id}`)
+          }
+
+          return jsxs(
             'div',
             {
               className: 'grid min-w-0 grid-cols-1',
-              children: withCut(
-                item.profile,
-                item.session,
-                jsx(PersoRow, {
-                  byProfile,
-                  groupId: null,
-                  groupState,
-                  handlers,
-                  nowMs,
-                  profile: item.profile,
-                  profileRow: profileRows?.[item.profile],
-                  session: item.session
-                })
-              )
+              children: [
+                jsxs('div', {
+                  'data-divider': item.bucket,
+                  className:
+                    'mt-1 flex min-w-0 items-center gap-1.5 border-t border-(--ui-stroke-secondary) px-2 pt-2 pb-0.5',
+                  children: [
+                    jsx('span', {
+                      className:
+                        'shrink-0 text-[0.625rem] font-semibold uppercase tracking-wider text-(--ui-text-quaternary)',
+                      children: t(BUCKET_LABEL_KEY[item.bucket])
+                    }, 'label'),
+                    jsx('span', {
+                      className: 'shrink-0 text-[0.625rem] text-(--ui-text-quaternary)',
+                      children: String(count)
+                    }, 'count')
+                  ]
+                }, `divider-${item.bucket}`),
+                withCut(item.profile, item.session, row)
+              ]
             },
             `flat-${item.profile}-${item.session?.id}`
           )
@@ -12636,7 +12739,10 @@ export default {
             : `${count} profiles could not be read — the Perso backend is not mounted yet.`,
         hideHiddenRows: 'Hide hidden rows',
         loading: 'Loading…',
+        readSection: 'Read',
+        runningSection: 'Running',
         sessionsLabel: 'sessions',
+        unreadSection: 'Unread',
         showHiddenRows: count => `Show hidden (${count})`,
         showMore: 'Show more',
         recentlyActive: 'Recently active',
@@ -12836,7 +12942,9 @@ export const __internals = {
   flatSessionItems,
   hideSessions,
   loadArchivedRows,
+  $sessionStates,
   sessionActivityMs,
+  sessionBucket,
   sessionsCreatedUpTo,
   openCoreFiles,
   migrateLegacyStorage,
