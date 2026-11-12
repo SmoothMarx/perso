@@ -364,7 +364,7 @@ check(
 
 // ── 6b. the profile dot is an AGGREGATE of its sessions (P8b) ───────────────
 // The row's dot used to be core's dot for the profile's LATEST session alone, so
-// answering that one silenced the row while a second session still waited. Pedro,
+// answering that one silenced the row while a second session still waited. the user,
 // 2026-10-10: "when the latest session has been resolved, the profile dot goes
 // silent, but there's still another session awaiting interaction. is it possible
 // for the statusdot to show that instead?" These pin the aggregate: the loudest
@@ -527,7 +527,7 @@ markup = render()
 
 
 // ── 6c. blue is a SESSION colour, never a profile one (P8b follow-up) ──────
-// Pedro, 2026-10-11, verbatim: "go, drop blue (from profile, keep in session
+// The reviewer, 2026-10-11, verbatim: "go, drop blue (from profile, keep in session
 // statusdot)" — and the rule he gave with it: "It should show unread status,
 // with priority first. so if there is a green and an orange, the orange is shown
 // first (and the number 2), until it is read, then it should go green (the
@@ -955,7 +955,7 @@ plugin.register(ctx)
 
 markup = render()
 
-// 2026-10-09, Pedro: "when right-clicking a profile, group options should not be
+// 2026-10-09, the user: "when right-clicking a profile, group options should not be
 // listed in the menu". A profile owns sessions; a GROUP owns group ops.
 check(
   'the profile menu lists no group options',
@@ -1118,7 +1118,7 @@ const defaultSlice = markup.slice(
 
 check('a collapsed profile draws none', !defaultSlice.includes('data-session='), defaultSlice.slice(0, 200))
 
-// Pedro's ordering, 2026-10-10: Select · Open · Session · Apropos (On that
+// the reviewer’s ordering, 2026-10-10: Select · Open · Session · Apropos (On that
 // topic) · Group · Appearance · Assign to project — one noun per submenu, so the
 // top level reads as a table of contents.
 const sessionMenu = markup.slice(markup.indexOf('data-session="sess-zulu-9"'))
@@ -1134,7 +1134,7 @@ const TOP_LEVEL = [
 const menuOrder = TOP_LEVEL.map(label => labelAt(sessionMenu, label))
 
 check(
-  'the session menu lists its seven verbs in Pedro\'s order',
+  'the session menu lists its seven verbs in the user\'s order',
   menuOrder.every((at, index) => at >= 0 && (index === 0 || at > menuOrder[index - 1])),
   JSON.stringify(menuOrder)
 )
@@ -1189,7 +1189,7 @@ check(
 )
 
 // ── the pop-up's glyphs ─────────────────────────────────────────────────────
-// Pedro, 2026-10-13: "add little icons to the options in the pop-up list when
+// The reviewer, 2026-10-13: "add little icons to the options in the pop-up list when
 // right-clicking on a session". None of these is decoration: a verb core also
 // has wears core's own glyph (`app/chat/sidebar/session-actions-menu.tsx`) —
 // Rename a pencil, Branch a fork, Export a download, Archive a box, Delete a
@@ -1347,7 +1347,7 @@ check(
   // TWO AUTHORITIES. The store is the durable title; the RUNNING session object is
   // what core's auto-titler consults. A live row therefore needs both writes, or
   // the first turn of a young chat overwrites the name the user just typed —
-  // Pedro, 2026-10-17: "I can't successfully rename a session until it's given me
+  // The reviewer, 2026-10-17: "I can't successfully rename a session until it's given me
   // some sort of response." The stored id still goes only to the backend.
   const before = h.requests.length
 
@@ -1622,7 +1622,7 @@ check(
   JSON.stringify({ jobby: refreshed.jobby.map(r => r.id), zulu: refreshed.zulu.map(r => r.id) })
 )
 
-// ── P7: per-profile list views (Pedro's item 1 + D-A) ───────────────────────
+// ── P7: per-profile list views (the reviewer’s item 1 + D-A) ───────────────────────
 
 __internals.$listView.set(null)
 __internals.$expanded.set({ zulu: true })
@@ -1821,7 +1821,7 @@ h.queryResults[(routinesQuery.queryKey || []).join('|')] = {
 markup = renderToStaticMarkup(routinesPane.render())
 
 check('the pane names the profile whose jobs it shows', markup.includes('>zulu<'), markup.slice(0, 400))
-// Pedro, 2026-10-09: "in the scheduled jobs pane, you can remove the profile
+// The reviewer, 2026-10-09: "in the scheduled jobs pane, you can remove the profile
 // list. The shown scheduled jobs should be according to the selected profile on
 // the left pane." So no picker in here — and the tile obeys the selection the
 // LEFT pane made rather than a choice of its own.
@@ -1919,7 +1919,7 @@ check(
 )
 
 /* ── 22. THE SCREEN PANE DRIVES THE SCREEN ──────────────────────────────────
- * Pedro, 2026-10-15: the Screen tab was a JPEG and the sentence "go to Bot
+ * The reviewer, 2026-10-15: the Screen tab was a JPEG and the sentence "go to Bot
  * Mode". These checks pin the replacement: the verbs, the handshake, the frame
  * decoder, the input gate and the lease — the things that have to be right
  * before a live view is worth a single click. */
@@ -2315,7 +2315,7 @@ __internals.openScreenPane('zulu', 'Screen')
 check('a second open reveals the existing tab rather than stacking one', h.workspaces.length === openedBefore + 1 && h.revealed.length === revealedBefore + 1)
 
 // ── leaving the tab: a surface that takes the chat area needs a way out ────
-// Pedro, 2026-10-16: "I didn't really have a way to come back to this chat
+// The reviewer, 2026-10-16: "I didn't really have a way to come back to this chat
 // without clicking on the session list."
 
 check(
@@ -2637,7 +2637,7 @@ check(
   h.opens[0]?.id
 )
 
-// Pedro, 2026-10-13 (item 2): "some session names are showing up as 'new session'
+// The reviewer, 2026-10-13 (item 2): "some session names are showing up as 'new session'
 // instead of their actual name". The strip draws the title of each tab's STORED
 // ROW, and a tile is filed into whichever per-profile bucket is visible when it
 // is CREATED — so a dock for a profile the app was never moved to files its tabs
@@ -2849,7 +2849,7 @@ check(
   })() === true
 )
 // ── P9: sort modes ─────────────────────────────────────────────────────────
-// The fix Pedro asked for: 20 rows in whatever order the roster arrived is not
+// The fix the user asked for: 20 rows in whatever order the roster arrived is not
 // a list, it is a dump. Every mode but `manual` is a TOTAL order (ties break on
 // the profile name) so two profiles on the same last_active cannot swap places
 // on each 5s poll and read as activity that is not happening.
@@ -3153,7 +3153,7 @@ check('the bar shows the last batch\'s receipt instead of a drifting toast', don
 check('a live selection enables the verbs', !/disabled/.test(doneBar))
 
 // ── Apropos: the SET, not the row that happened to be right-clicked ────────
-// Pedro, 2026-11-02: "I selected two conversations, and from there
+// The reviewer, 2026-11-02: "I selected two conversations, and from there
 // right-clicked to start a new apropos session, but it doesn't seem to have
 // referenced the two sessions properly." It had not: the child's seeded digest
 // carried ONE `[APROPOS-PIN parent=…]`, so it could never consult the second
@@ -3267,7 +3267,7 @@ check(
 )
 
 // ── session groups: filing one profile's own sessions by topic/project ─────
-// (Pedro, 2026-10-09.) The state layer is pure and the pane reads it through an
+// (The reviewer, 2026-10-09.) The state layer is pure and the pane reads it through an
 // atom, so all of this runs with no DOM at all.
 
 const SG_FIXTURE = [
@@ -3412,7 +3412,7 @@ check(
 
 check('a profile collapses to 10 recent sessions, not 20', __internals.SESSIONS_PER_PROFILE === 10)
 
-// ── the group BOX, and its color (Pedro, 2026-10-10) ─────────────────────────
+// ── the group BOX, and its color (The reviewer, 2026-10-10) ─────────────────────────
 // "add a thin outer line around the group, that includes the header, to serve as
 // a separator, allow the user to color code the group, by right-clicking the
 // group header and choosing a color. That changes the background fill of the
@@ -3664,10 +3664,10 @@ check('a group dropped on another group re-orders the sections', fired({ id: 'g2
 
 check(
   'a profile dropped on a profile in the same scope re-orders that scope',
-  fired({ kind: 'profile', name: 'keke', section: 'all' }, { 'data-drop-profile': 'zulu', 'data-drop-scope': 'all' })?.kind === 'order'
+  fired({ kind: 'profile', name: 'lima', section: 'all' }, { 'data-drop-profile': 'zulu', 'data-drop-scope': 'all' })?.kind === 'order'
 )
 
-check('a profile dropped on a group heading is filed into it', fired({ kind: 'profile', name: 'keke', section: 'all' }, { 'data-drop-group': 'g1' })?.kind === 'file')
+check('a profile dropped on a group heading is filed into it', fired({ kind: 'profile', name: 'lima', section: 'all' }, { 'data-drop-group': 'g1' })?.kind === 'file')
 
 const sessDrop = fired({ group: '', id: 'a1', kind: 'session', profile: 'zulu' }, { 'data-drop-profile': 'zulu', 'data-drop-session': 'a2', 'data-session-row': '' })
 
@@ -3688,7 +3688,7 @@ delete globalThis.document
 // ── the grip column: the pointer is BESIDE the row button ────────────────────
 // A grip is grabbed, so during a session drag the pointer sits on the grip —
 // outside the button, inside the row. A target read from the button alone
-// answered null and the drop was swallowed (Pedro, 2026-10-10: "I can move
+// answered null and the drop was swallowed (The reviewer, 2026-10-10: "I can move
 // profiles, but not sessions"), while the enclosing PROFILE lit up under the
 // pointer. These fixtures are rows with no button under the pointer at all.
 const rowEl = (id, top, height, profile = 'zulu') => ({
@@ -3800,7 +3800,7 @@ check(
 )
 // The reported bug, end to end. A saved order long enough to fill the inline page
 // used to be able to swallow a session the pane had never positioned: the row was
-// the FIRST in "View all" and in no row of the main view. Pedro, 2026-10-10:
+// the FIRST in "View all" and in no row of the main view. The reviewer, 2026-10-10:
 // "the session called 'Plan Hermes Desktop plugin with merged sessions' is not
 // showing up in the main view (underneath the profile), but it is the first
 // result when I click 'View all'".
@@ -3952,7 +3952,7 @@ check(
 // NO parent link: core reads `parent_session_id` as a BRANCH (it copies the
 // parent's whole transcript, stamps `_branched_from` and auto-titles the child
 // "<parent> #2"), which is not what Apropos is and which made the parent's own
-// row look renamed or duplicated. Pedro, 2026-10-10: "do not change anything
+// row look renamed or duplicated. The reviewer, 2026-10-10: "do not change anything
 // about the parent session… It should remain visible, with the original name."
 check(
   'Apropos calls session.create with NO parent link — a refresher, never a branch',
@@ -4038,7 +4038,7 @@ check(
   aproposMarkup.slice(aproposMarkup.indexOf('Apropos'), aproposMarkup.indexOf('Apropos') + 80)
 )
 
-// The feature is BETA and says so where the user reaches for it (Pedro,
+// The feature is BETA and says so where the user reaches for it (the user,
 // 2026-10-10: "flag the apropos feature as beta"). The label IS the marker, so
 // it is what a silent revert would drop.
 check(
@@ -4328,7 +4328,7 @@ const failed = results.filter(r => !r.ok)
 // cell inside a flex column can set the PANE's minimum width exactly like the
 // grid track once did (references/pane-layout.md).
 // ── session sorting, deletion, and Apropos over a selection ────────────────
-// Pedro, 2026-10-10, in order: "allow sorting of sessions, manually, by last
+// The reviewer, 2026-10-10, in order: "allow sorting of sessions, manually, by last
 // activity and others. That can be an option when right-clicking on a profile";
 // "don't hide or make the parent session go away from the list, they should both
 // be shown"; "allow deletion of sessions"; "when a user selects multiple
@@ -4654,7 +4654,7 @@ check(
 )
 
 // ── item-first drag: hold the thing, not a handle ──────────────────────────
-// Pedro, 2026-10-10: "can you make DnD activate by holding the actual item
+// The reviewer, 2026-10-10: "can you make DnD activate by holding the actual item
 // (session, profile, group), instead of needing a grip icon?"
 //
 // The item is also a button, so the gesture is: press, and only a MOVE arms it.
@@ -4877,7 +4877,7 @@ check(
 )
 
 // ── 2026-10-10: hiding, deleting a live session, moving groups, Apropos groups ──
-// Pedro's six asks, in the order he wrote them. Each one pins the SHAPE (a
+// the reviewer’s six asks, in the order he wrote them. Each one pins the SHAPE (a
 // marker, a store value, a call order) rather than the pixels.
 
 const FIXTURE_SESSIONS = [
@@ -4963,7 +4963,7 @@ check(
   renderZulu().includes('Show hidden (1)') && !renderZulu({ sessions: [] }).includes('Show hidden (')
 )
 
-// Pedro, 2026-10-13 (item 1): "also glyph the profile menu". Same wrapper, same
+// The reviewer, 2026-10-13 (item 1): "also glyph the profile menu". Same wrapper, same
 // font, same rule as the session table above — a verb core already has wears
 // core's own glyph ("Edit profile…" the pencil), a tab verb a browser, and the
 // reveal toggle the eye whose opposite ("Hide from Perso") is already
@@ -5076,7 +5076,7 @@ check(
 )
 // The diamond follows MEMBERSHIP, which is the box: filing a session into an
 // Apropos group is how it becomes a source, whether it arrived by the verb or by
-// a drag. Pedro, 2026-10-10: "If a user drags an existing session into the [group],
+// a drag. The reviewer, 2026-10-10: "If a user drags an existing session into the [group],
 // put the diamond icon next to it."
 check(
   'a session filed into an Apropos group earns the diamond',
@@ -5137,7 +5137,7 @@ check(
 //    the same verb as starting a child ───────────────────────────────────────
 
 // "Apropos this group" CONVERTS. Only the explicit "New child session" — and
-// the session menu's own Apropos — starts one. Pedro, 2026-10-10: "when choosing
+// the session menu's own Apropos — starts one. The reviewer, 2026-10-10: "when choosing
 // 'apropos this group', it should not create a child session automatically."
 check(
   'the header verb converts a plain group and starts a child on an Apropos one',
@@ -5217,7 +5217,7 @@ check(
 
 // A DELETED CHILD THAT CANNOT DIE. `withAproposChildren` synthesizes a row for
 // every link whose child core does not list, so a stale link is a row that comes
-// back after every delete. Pedro, 2026-10-10: "I cannot seem to delete some child
+// back after every delete. The reviewer, 2026-10-10: "I cannot seem to delete some child
 // sessions". Core answers 4007 for a session that is already gone.
 const phantom = 'phantom-child-1'
 
@@ -5310,7 +5310,7 @@ check(
 
 // "Apropos this group" used to produce a child and nothing else: the group was
 // still a PLAIN group, and the ◆ on a row is derived from the group's flag, so
-// its members stayed unmarked and out of the digest. Pedro, 2026-10-10: "When I
+// its members stayed unmarked and out of the digest. The reviewer, 2026-10-10: "When I
 // click Apropos this group, the existing sessions don't get the diamond icon
 // along with their functionality."
 const diamondGroup = __internals.createSessionGroup('diamond', 'D', ['d1', 'd2'], {})
@@ -5361,7 +5361,7 @@ check(
 )
 
 // One verb, two names: on a plain group it MAKES the Apropos group, on one that
-// already is it starts another child. Pedro, 2026-10-10: "The header options
+// already is it starts another child. The reviewer, 2026-10-10: "The header options
 // should have 'new child session'."
 check(
   'the header verb reads "New child session" once the group is an Apropos group',
@@ -5411,7 +5411,7 @@ check(
 )
 
 // Unticking the last row is how the user leaves select mode — there is nothing
-// left for the bar to act on. Pedro, 2026-10-10: "if the user unselects the last
+// left for the bar to act on. The reviewer, 2026-10-10: "if the user unselects the last
 // item and none are selected, stop the multiselect action."
 check(
   'unticking the LAST tick empties the set, which leaves select mode',
@@ -5432,7 +5432,7 @@ check(
 )
 
 // Deleting a group is never deleting sessions: the members are UNFILED, and the
-// pane keeps them visible in the single list they fall back into. Pedro,
+// pane keeps them visible in the single list they fall back into. the user,
 // 2026-10-10: "When deleting a group, apropos or not, sessions inside should not
 // be deleted, just removed from the group."
 const freedGroup = __internals.createSessionGroup('freed', 'F', ['f1', 'f2', 'f3'], {})
@@ -5469,7 +5469,7 @@ check(
 
 // Leaving a group. The anonymous block carries no box attribute — there is no
 // group there to read — so the ROW under the pointer is what says "not in a
-// group", and a grouped session dropped on the plain list is UNFILED. Pedro,
+// group", and a grouped session dropped on the plain list is UNFILED. the user,
 // 2026-10-10: "moving a session out of a group should remove them from the group
 // and into the single sessions list."
 const dropTile = (drag, target) =>
@@ -5553,7 +5553,7 @@ check(
 
 // The page must be able to hold what the pane knows about. `session.list` is
 // most-recent-first and the inline view asks for SESSIONS_PER_PROFILE, so a filed
-// session older than that page vanished from its own group. Pedro, 2026-10-10:
+// session older than that page vanished from its own group. The reviewer, 2026-10-10:
 // "it had two sessions inside, but only one was showing. Only after I deleted the
 // first one, did the second one show up."
 const fillIds = (list = []) => new Set(list.map(id => String(id)))
@@ -5640,7 +5640,7 @@ check(
 
 // 2. A session dropped on a group lands IN it. The target has to be the BOX:
 // filing read only the heading strip, and a heading is ~20px of a rectangle the
-// user sees as a whole. Pedro, 2026-10-10: "When dragging a session into a group
+// user sees as a whole. The reviewer, 2026-10-10: "When dragging a session into a group
 // or an Apropos Group, nothing happens."
 const dropOn = (drag, target) =>
   __internals.dropAction(drag, {
@@ -5747,7 +5747,7 @@ check(
 // 1. THE BATCH BAR. `profiles.list` carries NO `sessions` array (only
 // `last_session` / `worker_session`), so a batch resolved against the roster
 // found nothing: the count sat at "0 selected" and all five verbs were
-// `disabled`. Pedro, 2026-10-10: "the buttons on top (Select All, Clear, Close,
+// `disabled`. The reviewer, 2026-10-10: "the buttons on top (Select All, Clear, Close,
 // Archive, Delete) don't work… The numbering (0 selected) also does not work."
 const ROSTER_ROWS = [{ label: 'Zulu', name: 'zulu' }]
 const RENDERED_LISTS = { zulu: [{ id: 'z1', title: 'One' }, { id: 'z2', title: 'Two' }] }
@@ -5781,7 +5781,7 @@ check(
     SRC.includes('allSessionKeys(tickRows)')
 )
 
-// 2. RIGHT-CLICK SELECTS. Pedro, 2026-10-10: "if the user right-clicks on an
+// 2. RIGHT-CLICK SELECTS. The reviewer, 2026-10-10: "if the user right-clicks on an
 // item, assume that is the selected one when opening the right-click menu".
 check(
   'right-clicking a row makes it the selection',
@@ -5797,7 +5797,7 @@ check(
     SRC.includes('onRightClickSelect?.(sessionKey(profile, storedId))')
 )
 
-// 3. GROUPS MADE ON THE SPOT. Pedro, 2026-10-10: "immediately create the group,
+// 3. GROUPS MADE ON THE SPOT. The reviewer, 2026-10-10: "immediately create the group,
 // with Group #1 or Apropos #1 … Don't give them a text box to fill in before the
 // group is created."
 __internals.createSessionGroup('hotel', 'Old one', ['h1'])
@@ -5925,7 +5925,7 @@ check(
   `Move to group: ${glyphFor(renderZulu(), 'Move to group')}`
 )
 
-// 6. VIEW HIDDEN. Pedro, 2026-10-10: "next to View All and View Archives,
+// 6. VIEW HIDDEN. The reviewer, 2026-10-10: "next to View All and View Archives,
 // include a View hidden option for the hidden sessions from messenger, and allow
 // the user to unhide them."
 // Hiding a row the fixture actually RENDERS, so the footer's count is real.
@@ -6074,7 +6074,7 @@ if (process.env.DUMP_GROUPS) {
   check('…nor an Apropos or reaction envelope',
     L({ preview: '[The user reacted with 👍 to: hi]', title: null }) === 'Untitled session')
   check('a raw id is never the name',
-    L({ id: '20261010_110435_a8fbf6', preview: '', title: null }) === 'Untitled session')
+    L({ id: '20260101_000000_example', preview: '', title: null }) === 'Untitled session')
   check('a real title still wins over the preview',
     L({ preview: 'noise', title: 'Plan Hermes Desktop plugin' }) === 'Plan Hermes Desktop plugin')
   check('…and the row, the sort and the batch all read it',
@@ -6103,7 +6103,7 @@ if (process.env.DUMP_GROUPS) {
   // sweep keys a session by `agent.session_id or session_key or <runtime sid>`
   // (core's `_session_lookup_key`), while a row is drawn under its STORED id and
   // carries its runtime id as `resolved_id`. One id space per side, never equal
-  // (Pedro, 2026-11-12).
+  // (The reviewer, 2026-11-12).
   check(
     'a live status reaches the row through every id either side can name',
     (() => {
@@ -6129,7 +6129,7 @@ if (process.env.DUMP_GROUPS) {
   // `session.list` projects no `last_active` (`_session_row_summary` sends
   // id/title/preview/started_at/message_count/source), so every row read its
   // CREATION time — the age on the right never moved and the order looked like
-  // creation order (Pedro, 2026-11-12).
+  // creation order (The reviewer, 2026-11-12).
   check(
     'a row’s time is its last activity, falling back only when nothing knows better',
     __internals.activityMsFor({ id: 's1', last_active: 500, started_at: 100 }, {}) === 500000 &&
@@ -6140,7 +6140,7 @@ if (process.env.DUMP_GROUPS) {
       __internals.activityMsFor({ id: 's1', started_at: 100 }, { s1: 0 }) === 100000
   )
 
-  // Pedro, 2026-11-12: "if the user selects multiple sessions, then the
+  // The reviewer, 2026-11-12: "if the user selects multiple sessions, then the
   // right-click menu options should apply to all selected."
   check(
     'a row menu acts on the whole tick set, and on one row only when it is not ticked',
@@ -6222,7 +6222,7 @@ if (process.env.DUMP_GROUPS) {
 
 // ── 7. Personae: the rename, and the profile colour fill ────────────────────
 //
-// Pedro, 2026-10-10: "Let's rename this plug-in to 'Personae'" and "when the
+// The reviewer, 2026-10-10: "Let's rename this plug-in to 'Personae'" and "when the
 // user chooses a color for that profile, the color fills the profile row, as
 // well as all the session rows for that profile. It is overridden only by group
 // or apropos colors ... it should also be overridden by session colors ... yes,
@@ -6416,7 +6416,7 @@ if (process.env.DUMP_GROUPS) {
 }
 
 // ─── §8 Personae: the explicit "No fill" option ─────────────────────────────
-// Pedro, 2026-10-10: "allow for a no fill option as well." A picked colour
+// The reviewer, 2026-10-10: "allow for a no fill option as well." A picked colour
 // paints the profile row AND its session rows, so the picker it is picked from
 // needs a way back to nothing — and the swatch grid transcribed from Bots had
 // lost the clear row Bots itself gets from `avatar-picker.tsx`.
@@ -6487,8 +6487,8 @@ if (process.env.DUMP_GROUPS) {
 }
 
 // ─── §9 Personae: opening a session this pane CREATED ──────────────────────
-// Pedro, 2026-10-10: "it only shows the spinner, but i never get a chatbox to
-// enter my prompt" — an Apropos child (20261010_193700_d29494) opened as a tab
+// The reviewer, 2026-10-10: "it only shows the spinner, but i never get a chatbox to
+// enter my prompt" — an Apropos child (20260101_000000_example) opened as a tab
 // that never resumed. A `tab` open lands OFF the routed main view, so the SDK's
 // route-resume effect never fires for it; a tile with no `runtimeId` renders
 // `CenteredThreadSpinner`, and the composer only mounts inside `TileChat`.
@@ -6568,7 +6568,7 @@ if (process.env.DUMP_GROUPS) {
 // ── 20. the expanded set outlives the plugin instance ──────────────────────
 // The pane kept this in memory alone — the one view store it never handed to
 // `ctxRef.storage` — so the host re-evaluating the bundle collapsed the whole
-// roster. Pedro, 2026-10-10: "after a while they all collapse again".
+// roster. The reviewer, 2026-10-10: "after a while they all collapse again".
 
 // Earlier sections expand profiles of their own, so arrive at a known state
 // instead of assuming one: a no-op toggle would flip the wrong way.
@@ -6611,7 +6611,7 @@ check(
 // compression root id resolves to the live continuation"). The pane captures the
 // child's id the second it creates it — so after that child's first compaction
 // its link, its group filing, and its "keep this in the page" reservation all
-// name a segment `session.list` no longer returns. Pedro, 2026-10-10: "The icon
+// name a segment `session.list` no longer returns. The reviewer, 2026-10-10: "The icon
 // arrow hook is not showing up on the Apropos session".
 const chainCreated = []
 h.responses['session.create'] = params => {
@@ -7410,7 +7410,7 @@ const puts = server => server.calls.filter(call => call.method === 'PUT')
 
 // ── 1.4.0 — a search that FINDS the session, and the bulk archive cut ──────
 //
-// Pedro, 2026-10-16: "Search is not working, I tried searching for a keyword and
+// The reviewer, 2026-10-16: "Search is not working, I tried searching for a keyword and
 // it didn't pop up the session I was expecting it to." Six defects sat behind
 // that one sentence, and every one of them is pinned below:
 //   D1 an EXPANDED profile drew its own recent sessions and swallowed its hits;
@@ -7623,7 +7623,7 @@ __internals.$listView.set({ kind: 'archived', profile: 'zulu' })
 markup = render()
 
 check(
-  'View Archived can MULTISELECT (Pedro, 2026-10-16)',
+  'View Archived can MULTISELECT (The reviewer, 2026-10-16)',
   /aria-label="Select sessions"/.test(markup) && markup.includes('data-list-view="archived"')
 )
 check('View Archived can filter its own list', /aria-label="Filter this list"/.test(markup))
@@ -7703,7 +7703,7 @@ check(
 }
 
 {
-  // Pedro, 2026-10-17: "if I try to create a new session group by right-clicking
+  // The reviewer, 2026-10-17: "if I try to create a new session group by right-clicking
   // a session that is in the 'view all' it doesn't work." The drill-down draws
   // real SessionRows, and a row's Group menu calls three handlers — the pane
   // passed none of them, so every verb in that submenu threw on `undefined`.
@@ -7721,7 +7721,7 @@ check(
     'and hands them to every row, with the group facts the menu reads',
     [
       // A new group files the whole SELECTION of this profile, not just the row
-      // it was opened on (Pedro, 2026-11-12).
+      // it was opened on (The reviewer, 2026-11-12).
       'onNewGroup: () => onNewGroup(profile, groupMemberIds(ticks, profile))',
       'onMoveGroup: payload => onMoveGroup(profile, payload, selectedKeys)',
       'groups: groupSlice.groups',
@@ -7798,12 +7798,12 @@ check(
   const src = readFileSync(new URL('./plugin.js', import.meta.url), 'utf8')
 
   check(
-    '"Delete all up to this point" does not exist — Pedro excluded it',
+    '"Delete all up to this point" does not exist — the user excluded it',
     !/Delete all up to this point/i.test(src) && !/deleteUpTo|deleteAllUpTo/i.test(src)
   )
 }
 
-// ── WHERE the confirmation lands (Pedro, 2026-11-03) ───────────────────────
+// ── WHERE the confirmation lands (The reviewer, 2026-11-03) ───────────────────────
 // "the confirmation box should be under the selected session, not at the top of
 // the list". Asserted on the real pane render, not on a component in isolation:
 // the bar has to be in the tree directly after the row it was opened on, with
@@ -8123,7 +8123,7 @@ h.rest.byProfile = {}
   __internals.$sessionGroups.set({})
 }
 
-// ── an archived member leaves the BOX, not the group (Pedro, 2026-11-03) ───
+// ── an archived member leaves the BOX, not the group (The reviewer, 2026-11-03) ───
 // "once they become archived they will be removed from the group (or at least
 // from showing in the main view)". Chosen: hide, keep the filing. The DATA
 // layer still carries the member (the tests above pin that — it is what puts
@@ -8338,19 +8338,19 @@ h.rest.byProfile = {}
 
   // 2. The store does not know a STORED-shaped id: do not hand it to the gateway
   //    (it answers "Session not found" for every one, and that sentence lies).
-  h.rest.byProfile = { zulu: { detail: 'no session 20260101_000000_abc123 in zulu', error: 'session_not_found' } }
+  h.rest.byProfile = { zulu: { detail: 'no session 20260101_000000_example in zulu', error: 'session_not_found' } }
   h.requests.length = 0
   said = ''
 
   try {
-    await __internals.renameSession({ id: '20260101_000000_abc123' }, 'zulu', 'anything')
+    await __internals.renameSession({ id: '20260101_000000_example' }, 'zulu', 'anything')
   } catch (error) {
     said = String(error.message || error)
   }
 
   check(
     'a stored-shaped id the store does not have is reported as missing, with no doomed RPC',
-    /no session 20260101_000000_abc123/.test(said) && h.requests.length === 0,
+    /no session 20260101_000000_example/.test(said) && h.requests.length === 0,
     said
   )
 
@@ -8405,7 +8405,7 @@ h.rest.byProfile = {}
 
 
 // ── Perso: the FLAT list ────────────────────────────────────────────────────
-// Pedro, 2026-11-11: "instead of having a conversation with all the profiles, I
+// The reviewer, 2026-11-11: "instead of having a conversation with all the profiles, I
 // just want a list of sessions, ordered by activity, with the profile pictures of
 // the profiles it belongs to next to the title."
 //
@@ -8486,7 +8486,7 @@ h.rest.byProfile = {}
     JSON.stringify(grouped[1])
   )
 
-  // "groups should be at the top" (Pedro, 2026-11-11): a box is a place the user
+  // "groups should be at the top" (The reviewer, 2026-11-11): a box is a place the user
   // put things, so even a fresher loose session never jumps above it.
   const newerLoose = __internals.flatSessionItems({
     byProfile: { zulu: [mk('old', 100), mk('fresh', 900), mk('loose', 5000)] },
@@ -8593,7 +8593,7 @@ h.rest.byProfile = {}
       'the cut stayed inside one profile'
     )
     // ── a row he has opened is READ, whatever core's watermark says ─────────
-    // Pedro, 2026-11-11: "the android session ... doesn't leave the unread
+    // The reviewer, 2026-11-11: "the android session ... doesn't leave the unread
     // section, even though it's already been read". Core's `unread` is a
     // `last_read_at` watermark the app never kept current (that row's was 19
     // days old), so the pane keeps its own: activity at or before the moment he
@@ -8635,13 +8635,13 @@ h.rest.byProfile = {}
       JSON.stringify(__internals.$seen.get())
     )
     // ── the empty-chat hero ───────────────────────────────────────────────
-    // Pedro, 2026-11-11: "when you start a new session in bots, the main screen
+    // The reviewer, 2026-11-11: "when you start a new session in bots, the main screen
     // shows the bot's name and their profile picture" → "yes, to both Perso and
     // Personae". Every registration on `chat.empty` is mounted and answers for
     // itself, so the ONLY safe claim is "this pane opened that session".
     // The slot asks with the LIVE id while the store is keyed by the id the pane
     // OPENED with (stored), and the two are never equal — comparing them meant the
-    // hero could not draw for any session (Pedro, 2026-11-11: "the hero doesn't
+    // hero could not draw for any session (The reviewer, 2026-11-11: "the hero doesn't
     // show up").
     check(
       'the hero claims a session by its LIVE id, or by the stored id of the tile on screen',
@@ -8804,7 +8804,7 @@ h.rest.byProfile = {}
     flatMarkup.slice(flatMarkup.indexOf('data-session="z-1"'), flatMarkup.indexOf('data-session="z-1"') + 500)
   )
   check(
-    'the status dot comes BEFORE the picture (Pedro, 2026-11-11)',
+    'the status dot comes BEFORE the picture (The reviewer, 2026-11-11)',
     (() => {
       const row = flatMarkup.slice(flatMarkup.indexOf('data-session="z-1"'))
       const dot = row.indexOf('data-slot="session-status-dot"')
@@ -8817,7 +8817,7 @@ h.rest.byProfile = {}
   check('no profile ROW is drawn — the roster is gone', !flatMarkup.includes('data-profile-row'))
 
   // ── a single-profile box carries the identity on its HEADING ──────────────
-  // Pedro, 2026-11-11: "if the sessions in a group all belong to the same
+  // The reviewer, 2026-11-11: "if the sessions in a group all belong to the same
   // profile put the profile picture to the left of the group name and remove the
   // profile pictures from sessions inside the group." A box's members are one
   // profile's by construction (the group store is keyed by profile), so every box
@@ -9141,7 +9141,7 @@ h.rest.byProfile = {}
 }
 
 
-// ── the dividers INSIDE a box (Pedro, 2026-11-11) ───────────────────────────
+// ── the dividers INSIDE a box (The reviewer, 2026-11-11) ───────────────────────────
 // "include the dividers inside the groups": a box files sessions by hand; it is
 // not a place to lose what needs his eyes.
 {

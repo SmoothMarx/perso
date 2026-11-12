@@ -21,9 +21,9 @@ maintainer: SmoothMarx
 tier: community
 category: desktop
 version: "0.1.17"
-image: https://raw.githubusercontent.com/SmoothMarx/perso/<sha>/assets/perso-pane.png
+image: https://raw.githubusercontent.com/SmoothMarx/perso/<sha>/assets/perso-cover.png
 screenshots:
-  - https://raw.githubusercontent.com/SmoothMarx/perso/<sha>/assets/perso-pane.png
+  - https://raw.githubusercontent.com/SmoothMarx/perso/<sha>/assets/perso-cover.png
 platforms: [linux, macos, windows]
 capabilities:
   provides_tools: []
@@ -59,23 +59,24 @@ requires_hermes: ">=0.21.6"
    session is new behaviour and the easiest thing to be surprised by, so it is
    named rather than implied by "creates".
 
-## Still needed
+## Assets
 
-1. **`assets/perso-pane.png`** — a capture of the app window with the Perso tab
-   active, list populated, ideally with a group box and a divider visible. Same
-   framing as `personae-pane.png` (app window, 1916×1008, uncropped).
-2. **Optional: `assets/perso-icon.png` / `perso-logo.png`** — the current files are
-   Personae's. A fork with the parent's face is confusing in a catalog grid.
-3. Rename the borrowed assets once the new ones exist; nothing in the plugin reads
-   them (the pane inlines its own marks), so this is repo tidiness only.
+`assets/perso-cover.png` — a designed card (1600×800, rendered at 2×), not a
+screenshot: the mock list is fictional (`mira`/`atlas`/`quill`, invented titles),
+so it shows the shape of the pane without publishing anyone's sessions. Same
+family as Personae's cover, whose headline it answers: *Sorted by who, not when.*
+vs *Sorted by when, not by who.*
 
-## Sequence when the asset lands
+`assets/perso-icon.png` — 256×256, the list glyph on the accent tile.
 
-1. Commit the capture to `SmoothMarx/perso`, re-run `tests/portability.sh` and the
-   harness at that commit.
+Both are committed at the pinned sha, which is what the catalog entry's `image:`
+and `screenshots:` must point at (raw.githubusercontent.com, sha-pinned).
+
+## Sequence when a change lands
+
+1. Commit to `SmoothMarx/perso`, re-run `tests/portability.sh` and the harness at
+   that commit.
 2. Fork-sync `SmoothMarx/hermes-agent` to upstream `main`.
-3. Add `plugin-catalog/perso.yaml` on a branch, open the PR (Personae's re-pin went
-   through as NousResearch/hermes-agent#154209, so the account is no longer
-   blocked).
-4. Reviewer looks at the pinned commit range; `hermes plugins validate` runs the
+3. Add `plugin-catalog/perso.yaml` on a branch, open the PR.
+4. Reviewer reads the pinned commit range; `hermes plugins validate` runs the
    desktop-surface and capability checks.

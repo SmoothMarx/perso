@@ -287,7 +287,7 @@ export function ContextMenu({ children }) {
  * `ContextMenu` looks up a `Menu` context nobody provided under its scope and
  * throws `` `MenuItem` must be used within `Menu` `` at RENDER time — the
  * pane's right-click crash of 2026-10-09. The stub enforces the same rule, so
- * mixing the families fails HERE instead of in Pedro's window.
+ * mixing the families fails HERE instead of in the reviewer’s window.
  */
 const MenuScope = createContext('none')
 
