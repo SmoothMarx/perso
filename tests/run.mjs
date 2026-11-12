@@ -970,7 +970,7 @@ check(
 // `data-slot="context-menu-item">Open all in tabs` stopped matching the day the
 // row earned an icon — the wrapper was never the subject.
 check(
-  'newSession CREATES the session and opens it — a draft has no id, so no hero',
+  'newSession CREATES the session and opens it as a CHILDLESS one (nothing paints)',
   await (async () => {
     const savedCreate = h.responses['session.create']
 
@@ -994,7 +994,9 @@ check(
       // ONE hidden seed row is what makes the gateway persist the session at all.
       create.params.messages?.[0]?.display_kind === 'hidden' &&
       Boolean(opened) &&
-      opened.options?.expectHistory === true &&
+      // The transcript is ONE hidden row and paints nothing, so the open must
+      // wait on the RUNTIME, not on a painted transcript — "Waking up forever".
+      opened.options?.expectHistory === false &&
       h.newChats.length === 0
     )
   })(),
@@ -6432,10 +6434,7 @@ if (process.env.DUMP_GROUPS) {
       // The session menu's own "In new tab" passes it straight; the dock builds
       // every tab from it through one helper, which can only ever ADD the
       // cross-profile switch — never drop the wait.
-      // Two call sites now: the session menu's "In new tab", and a brand-new
-      // session created by the toolbar's + (it must be opened the same way, or
-      // the created tile hangs on a spinner).
-      (SRC10.match(/, 'tab', INTENT_OPEN\)/g) || []).length === 2 &&
+      (SRC10.match(/, 'tab', INTENT_OPEN\)/g) || []).length === 1 &&
       SRC10.includes("'tab', flags ? { ...INTENT_OPEN, ...flags } : INTENT_OPEN")
   )
   check(
