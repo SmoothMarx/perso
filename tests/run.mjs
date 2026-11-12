@@ -230,7 +230,7 @@ check(
 const pane = contributions.find(c => c.id === 'pane') || {}
 
 check('contribution area is "panes"', pane.area === 'panes', `got ${pane.area}`)
-check('tab label is "Personae"', pane.title === 'Perso', `got ${pane.title}`)
+check('tab label is "Perso"', pane.title === 'Perso', `got ${pane.title}`)
 check(
   'placement is left / 280px',
   pane.data?.placement === 'left' && pane.data?.width === '280px',
