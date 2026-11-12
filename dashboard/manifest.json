@@ -2,7 +2,7 @@
   "name": "perso",
   "label": "Perso",
   "description": "The archive listing, message-body search and the shared UI-state store (GET/PUT /state) behind the Perso pane. Perso shares Personae's state document, so groups, Apropos links and hidden flags are one set across both panes.",
-  "version": "0.1.14",
+  "version": "0.1.15",
   "icon": "list-flat",
   "api": "plugin_api.py",
   "tab": {
