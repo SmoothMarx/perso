@@ -478,6 +478,10 @@ const FLAT_FETCH = 60
 /** The picture on a session row. Small enough to repeat on every line, large
  *  enough that a profile is recognisable from its avatar alone. */
 const AVATAR_ROW_SIZE = 17
+/** The hidden row that makes a brand-new session durable (see newSession). The
+ *  agent sees it on the first turn, so it says what it is and nothing else. */
+const NEW_SESSION_SEED =
+  '[A new session was started from the session list; nothing has been said yet.]'
 /** The picture at the head of a single-profile group box. Smaller than a row's:
  *  it labels a section, it is not the row you are scanning. */
 const AVATAR_HEAD_SIZE = 14
@@ -3887,8 +3891,52 @@ function openSession(storedId, profile, intent, options = {}) {
 }
 
 /** A new session under this profile — the same call the toolbar's + makes. */
-function newSession(profile) {
-  return host.newChat(String(profile))
+/** A new session under this profile — the toolbar's "+".
+ *
+ *  Bot Mode's "+" opens a chat that ALREADY EXISTS, which is why its empty state
+ *  can introduce the bot. `host.newChat` alone opens a DRAFT: no stored id, so the
+ *  app never mounts the chat-empty slot and this pane's hero cannot appear
+ *  (Pedro, 2026-11-11: "nothing happens when I create a new session using the +
+ *  button"). So the pane creates the session itself.
+ *
+ *  ONE HIDDEN SEED ROW is what makes the gateway persist it: a bare create
+ *  returns ids but writes no row (verified against the live gateway), and a row
+ *  is what every list — and the tile that follows — needs. The row is
+ *  `display_kind: 'hidden'`, so the transcript is visually empty and the hero
+ *  shows; the title keeps the list from naming the row after the seed.
+ */
+async function newSession(profile) {
+  const scope = String(profile || '')
+
+  if (!scope) {
+    return host.newChat(scope)
+  }
+
+  try {
+    const res = await host.request('session.create', {
+      idempotency_key: `sessions-new-${scope}-${Date.now().toString(36)}`,
+      messages: [{ content: NEW_SESSION_SEED, display_kind: 'hidden', role: 'user' }],
+      profile: scope,
+      source: 'desktop',
+      title: 'New session'
+    })
+    const storedId = String(res?.stored_session_id || '')
+
+    if (!storedId) {
+      // A gateway that answered without a stored id cannot be opened by id: fall
+      // back to the app's own draft rather than opening nothing at all.
+      return host.newChat(scope)
+    }
+
+    noteOpened(storedId)
+
+    return await openSession(storedId, scope, 'tab', INTENT_OPEN)
+  } catch (error) {
+    host.notifyError?.(String(error?.message || error))
+
+    // Never a dead button.
+    return host.newChat(scope)
+  }
 }
 
 /** Soft-hide the session + its lineage; messages are kept (#98813). */
@@ -9065,7 +9113,7 @@ function Toolbar({ countLabel, onBell, onFiles, onNewGroup, onSelect, rows, sele
                               // The sidebar's own per-profile "+" door: starts a
                               // draft on that profile and spins its backend up in
                               // the background.
-                              onSelect: () => host.newChat(row.name),
+                              onSelect: () => newSession(row.name),
                               children: [
                                 jsx(Codicon, { className: 'mr-1.5', name: 'hubot' }, 'glyph'),
                                 row.label

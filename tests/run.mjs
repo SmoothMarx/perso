@@ -969,12 +969,37 @@ check(
 // wraps its text in a <span> (core's own `renderActionItem` shape), so
 // `data-slot="context-menu-item">Open all in tabs` stopped matching the day the
 // row earned an icon — the wrapper was never the subject.
-check('newSession starts a session on that profile (the toolbar\'s own call)', (() => {
-  h.newChats.length = 0
-  __internals.newSession('zulu')
+check(
+  'newSession CREATES the session and opens it — a draft has no id, so no hero',
+  await (async () => {
+    const savedCreate = h.responses['session.create']
 
-  return h.newChats.length === 1 && h.newChats[0] === 'zulu'
-})(), JSON.stringify(h.newChats))
+    h.newChats.length = 0
+    h.requests.length = 0
+    h.opens.length = 0
+    h.responses['session.create'] = () => ({ session_id: 'rt-new', stored_session_id: 'stored-new' })
+
+    await __internals.newSession('zulu')
+
+    const create = h.requests.find(entry => entry.method === 'session.create')
+    const opened = h.opens.find(entry => entry.id === 'stored-new')
+    const dumped = { create: create?.params, opens: h.opens, newChats: h.newChats }
+
+    if (savedCreate === undefined) delete h.responses['session.create']
+    else h.responses['session.create'] = savedCreate
+
+    return (
+      Boolean(create) &&
+      create.params.profile === 'zulu' &&
+      // ONE hidden seed row is what makes the gateway persist the session at all.
+      create.params.messages?.[0]?.display_kind === 'hidden' &&
+      Boolean(opened) &&
+      opened.options?.expectHistory === true &&
+      h.newChats.length === 0
+    )
+  })(),
+  'the + still opens a draft, so the empty chat has no id to introduce'
+)
 
 // ── 16. a profile expands into its recent sessions ─────────────────────────
 
@@ -6407,7 +6432,10 @@ if (process.env.DUMP_GROUPS) {
       // The session menu's own "In new tab" passes it straight; the dock builds
       // every tab from it through one helper, which can only ever ADD the
       // cross-profile switch — never drop the wait.
-      (SRC10.match(/, 'tab', INTENT_OPEN\)/g) || []).length === 1 &&
+      // Two call sites now: the session menu's "In new tab", and a brand-new
+      // session created by the toolbar's + (it must be opened the same way, or
+      // the created tile hangs on a spinner).
+      (SRC10.match(/, 'tab', INTENT_OPEN\)/g) || []).length === 2 &&
       SRC10.includes("'tab', flags ? { ...INTENT_OPEN, ...flags } : INTENT_OPEN")
   )
   check(
