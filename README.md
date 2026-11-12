@@ -49,7 +49,9 @@ dashboard backend for the two reads the SDK cannot reach.
   is off — *Move to group ▸* in the row menu is the same verb, scoped correctly
   and unable to fail silently. **Group boxes** do drag: grab a heading and drop
   it on another box (or its heading) to re-order them.
-- **No Scheduled-jobs tile.** That pane belongs to Personae's layout.
+- **No tile of its own.** The **Scheduled jobs** pane rides along as the same
+  tile Bots puts beside the chat: registered only while Perso is on screen, and
+  collapsed by default so it takes no width off the chat.
 
 ## The order
 
@@ -82,8 +84,16 @@ Two halves, two hosts — they drift silently if you ship one:
 1. **Desktop half** — copy `desktop/plugin.js` into the app's own home:
    `<app home>/desktop-plugins/perso/plugin.js`
    (`%LOCALAPPDATA%\hermes\desktop-plugins\perso\` on Windows). `deploy.sh` does
-   the `scp` and prints both hashes; the app hot-reloads, ⌘K → **Reload desktop
-   plugins** is the fallback.
+   the `scp` and prints both hashes — it knows no hosts, so you name yours:
+
+   ```bash
+   HOST=user@box \
+   WIN_DIR='C:/Users/you/AppData/Local/hermes/desktop-plugins/perso' \
+   ./deploy.sh
+   ```
+
+   The app hot-reloads in seconds; ⌘K → **Reload desktop plugins** is the
+   fallback.
 2. **Backend half** — copy this package's `dashboard/*.py` onto the gateway box
    as `<hermes home>/plugins/perso/dashboard/` (`deploy-backend.sh`), then
    **restart** the dashboard process: plugin API routers mount at import, so the
@@ -112,8 +122,11 @@ machine without Personae it falls back to `plugins/perso/state/`.
 Three suites: `run.mjs` renders the pane headlessly with `react-dom/server` and
 asserts on the tree and on the pure decision layer; `classes.mjs` proves every
 Tailwind token exists in the app's already-compiled stylesheet; `icons.mjs` does
-the same for codicon names. It needs a Hermes Desktop checkout with
-`node_modules` installed:
+the same for codicon names. Before any of them, `tests/portability.sh` scans the
+tracked tree and fails the run if a file names a private host, a real home
+directory or a LAN/tailnet address — an artefact that only runs on its author's
+machine is tested by the first stranger instead. It needs a Hermes Desktop
+checkout with `node_modules` installed:
 
 ```bash
 HERMES_DESKTOP_REPO=~/path/to/checkout ./tests/run.sh
