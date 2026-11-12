@@ -6099,6 +6099,33 @@ if (process.env.DUMP_GROUPS) {
   check('…and the dialog is mounted in the pane', SRC7.includes("'edit-profile-dialog'"))
 
   // (4) Deleting a session deletes the LINE it belongs to (core orphans the rest).
+  // The Running divider was empty while the toolbar said `live 3/39`: the live
+  // sweep keys a session by `agent.session_id or session_key or <runtime sid>`
+  // (core's `_session_lookup_key`), while a row is drawn under its STORED id and
+  // carries its runtime id as `resolved_id`. One id space per side, never equal
+  // (Pedro, 2026-11-12).
+  check(
+    'a live status reaches the row through every id either side can name',
+    (() => {
+      const live = __internals.liveStatusMap([{ id: 'rt-1', session_key: '2026_stored', status: 'working' }])
+      const row = { id: '2026_stored', resolved_id: 'rt-1' }
+
+      return (
+        // Both ids the live row carries are answerable…
+        live['rt-1'] === 'working' &&
+        live['2026_stored'] === 'working' &&
+        // …a row resolves through its own aliases…
+        __internals.stateForRow(row, { 'rt-1': 'working' }) === 'working' &&
+        __internals.liveStatusForRow(row, { 'rt-1': 'working' }) === 'working' &&
+        // …the runtime id is an alias at all (it was not: only id/lineage)…
+        __internals.rowIdentities(row).has('rt-1') &&
+        // …and an id nobody knows still resolves to nothing, never to a guess.
+        __internals.stateForRow({ id: 'other' }, { 'rt-1': 'working' }) === undefined
+      )
+    })(),
+    'the live status and the row are still keyed in different id spaces'
+  )
+
   // `session.list` projects no `last_active` (`_session_row_summary` sends
   // id/title/preview/started_at/message_count/source), so every row read its
   // CREATION time — the age on the right never moved and the order looked like

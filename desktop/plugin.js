@@ -481,7 +481,7 @@ const AVATAR_ROW_SIZE = 17
 /** Rendered in the toolbar: the only proof of WHICH bytes the app is running.
  *  A pane that has been silently running a stale build looks exactly like a
  *  broken feature, and that mistake has cost this file three rounds. */
-const BUILD = '0.1.18'
+const BUILD = '0.1.20'
 /** The picture at the head of a single-profile group box. Smaller than a row's:
  *  it labels a section, it is not the row you are scanning. */
 const AVATAR_HEAD_SIZE = 14
@@ -2914,15 +2914,58 @@ function liveStatusMap(rows) {
   const map = {}
 
   for (const row of rows || []) {
-    const key = String(row?.session_key || '')
     const status = String(row?.status || '')
 
-    if (key && status) {
-      map[key] = status
+    if (!status) {
+      continue
+    }
+
+    // `session.active_list` labels a live session `agent.session_id or
+    // session_key or <runtime sid>` (core's `_session_lookup_key`), so the ONE
+    // key it reports is whichever of those exists — the runtime id for a session
+    // this app resumed, the stored id for one it created. Filing each status
+    // under every id the row carries is what lets a stored-id row find it
+    // (Pedro, 2026-11-12: nothing moved into Running while `live 3/39` said
+    // three sessions were working).
+    for (const key of [row?.session_key, row?.id]) {
+      const id = String(key || '')
+
+      if (id) {
+        map[id] = status
+      }
     }
   }
 
   return map
+}
+
+/** A row's live status, resolved through EVERY id it answers to: the stored id,
+ *  the runtime id `session.list` calls `resolved_id`, and its compression
+ *  lineage. Pure. */
+function liveStatusForRow(session, live) {
+  for (const key of rowIdentities(session || {})) {
+    const status = String(live?.[String(key || '')] || '')
+
+    if (status) {
+      return status
+    }
+  }
+
+  return ''
+}
+
+/** The state a rendered row should be drawn in — its own, or the one filed
+ *  under any alias of it. Pure. */
+function stateForRow(session, states) {
+  for (const key of rowIdentities(session || {})) {
+    const state = states?.[String(key || '')]
+
+    if (state) {
+      return state
+    }
+  }
+
+  return undefined
 }
 
 /** The whole roster's dots: `{profile: {state, count, counts}}`.
@@ -3036,6 +3079,7 @@ async function fetchRoster() {
 
     const liveMap = liveStatusMap(live)
 
+
     $profileDots.set(rosterRollups(Object.fromEntries(lists), liveMap))
 
     // …and the same read, per session (see $sessionStates): a session's own
@@ -3049,12 +3093,23 @@ async function fetchRoster() {
         const id = String(session?.id || '')
 
         if (id) {
-          sessionStates[id] = dotStateFor(liveMap[id], session?.unread === true)
-
+          // Filed under EVERY id the row answers to, so a rendered row finds it
+          // whichever id it happens to look up with (see stateForRow).
+          const state = dotStateFor(liveStatusForRow(session, liveMap), session?.unread === true)
           const at = sessionActivityMs(session)
 
-          if (at > 0) {
-            lastActive[id] = at
+          for (const key of rowIdentities(session)) {
+            const alias = String(key || '')
+
+            if (!alias) {
+              continue
+            }
+
+            sessionStates[alias] = state
+
+            if (at > 0) {
+              lastActive[alias] = at
+            }
           }
         }
       }
@@ -4485,6 +4540,10 @@ function rowIdentities(row) {
   }
 
   push(row?.id)
+  // `session.list` projects the RUNTIME id here, and `session.active_list`
+  // reports a live session by exactly that id — so a row's own runtime id has to
+  // be one of its aliases or the Running divider can never fill.
+  push(row?.resolved_id)
   push(row?._lineage_root_id)
 
   if (Array.isArray(row?._lineage_ids)) {
@@ -7305,7 +7364,7 @@ function bucketSessions(sessions, states, seen, focusedId) {
     const activeMs = sessionActivityMs(session)
     const seenAt = id && id === String(focusedId || '') ? activeMs : Number(seen?.[id]) || 0
 
-    return sessionBucket(states?.[id], { activeMs, seenAt })
+    return sessionBucket(stateForRow(session, states), { activeMs, seenAt })
   }
 
   return BUCKETS.map(bucket => ({
@@ -7375,7 +7434,7 @@ function flatProfileItems({
     // needed, and no window where it is both open and "unread".
     const seenAt = id && id === String(focusedId || '') ? activeMs : Number(seen?.[id]) || 0
 
-    return sessionBucket(states?.[id], { activeMs, seenAt })
+    return sessionBucket(stateForRow(session, states), { activeMs, seenAt })
   }
   const list = Array.isArray(sessions) ? sessions : []
   // A child draws under its parent — the roster's own rule, so the two panes
@@ -13643,7 +13702,9 @@ export const __internals = {
   dotStateFor,
   DOT_LIST_TTL_MS,
   dotListCache,
+  liveStatusForRow,
   liveStatusMap,
+  stateForRow,
   LIVE_WORKING,
   ROLLUP_DOT,
   ROLLUP_INK,
