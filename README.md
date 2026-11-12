@@ -1,12 +1,16 @@
 # Perso — one list, newest first
 
-**Every profile's sessions, in one list. Sorted by when, not by who.**
+**Personae's little brother. Only the session list — with all the goodies.**
 
-Perso is a copy of [Personae](https://github.com/SmoothMarx/personae) with the
-roster view replaced. Instead of a row per profile that expands into its
-sessions, the pane draws **one flat list of every profile's sessions, ordered by
-activity**, and each row carries the profile it belongs to — picture and name —
-so a single stream is still readable.
+Where [Personae](https://github.com/SmoothMarx/personae) hands you a full roster
+to open profile by profile, Perso keeps just the list: **every profile's sessions
+in one stream, ordered by activity**. Each row carries the profile it belongs to —
+picture and name — so one stream across twenty profiles still reads.
+
+Everything Personae is known for comes along: sessions arrive sorted into
+**Unread**, **Running** and **Read**, and any of them can be **grouped together
+by topic** (or whichever line you want to draw), with colour, search, an archived
+section and a row menu that acts on the whole selection.
 
 It is a desktop plugin for the **Hermes Desktop** app. It ships no build step:
 one plain-ESM `desktop/plugin.js` the app loads at runtime, plus a small

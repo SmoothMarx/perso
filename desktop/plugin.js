@@ -481,7 +481,7 @@ const AVATAR_ROW_SIZE = 17
 /** Rendered in the toolbar: the only proof of WHICH bytes the app is running.
  *  A pane that has been silently running a stale build looks exactly like a
  *  broken feature, and that mistake has cost this file three rounds. */
-const BUILD = '0.1.15'
+const BUILD = '0.1.16'
 /** The picture at the head of a single-profile group box. Smaller than a row's:
  *  it labels a section, it is not the row you are scanning. */
 const AVATAR_HEAD_SIZE = 14
