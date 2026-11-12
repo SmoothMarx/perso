@@ -478,10 +478,6 @@ const FLAT_FETCH = 60
 /** The picture on a session row. Small enough to repeat on every line, large
  *  enough that a profile is recognisable from its avatar alone. */
 const AVATAR_ROW_SIZE = 17
-/** The hidden row that makes a brand-new session durable (see newSession). The
- *  agent sees it on the first turn, so it says what it is and nothing else. */
-const NEW_SESSION_SEED =
-  '[A new session was started from the session list; nothing has been said yet.]'
 /** The picture at the head of a single-profile group box. Smaller than a row's:
  *  it labels a section, it is not the row you are scanning. */
 const AVATAR_HEAD_SIZE = 14
@@ -3899,11 +3895,11 @@ function openSession(storedId, profile, intent, options = {}) {
  *  (Pedro, 2026-11-11: "nothing happens when I create a new session using the +
  *  button"). So the pane creates the session itself.
  *
- *  ONE HIDDEN SEED ROW is what makes the gateway persist it: a bare create
- *  returns ids but writes no row (verified against the live gateway), and a row
- *  is what every list — and the tile that follows — needs. The row is
- *  `display_kind: 'hidden'`, so the transcript is visually empty and the hero
- *  shows; the title keeps the list from naming the row after the seed.
+ *  The session is created with NO message and then TITLED: a bare create returns
+ *  ids but writes no row (verified against the live gateway), and `session.title`
+ *  is what persists one (`_ensure_session_db_row`). A seeded create would also
+ *  persist — and would defeat the whole point: a hidden row is still a message
+ *  group, and the empty state only renders when there are none.
  */
 async function newSession(profile) {
   const scope = String(profile || '')
@@ -3915,7 +3911,6 @@ async function newSession(profile) {
   try {
     const res = await host.request('session.create', {
       idempotency_key: `sessions-new-${scope}-${Date.now().toString(36)}`,
-      messages: [{ content: NEW_SESSION_SEED, display_kind: 'hidden', role: 'user' }],
       profile: scope,
       source: 'desktop'
     })
@@ -3925,6 +3920,24 @@ async function newSession(profile) {
       // A gateway that answered without a stored id cannot be opened by id: fall
       // back to the app's own draft rather than opening nothing at all.
       return host.newChat(scope)
+    }
+
+    // A bare create writes NO row, and a session with no row cannot be resumed or
+    // listed later. `session.title` persists it (`_ensure_session_db_row`: an
+    // explicit title is clear intent) — and, unlike a seeded create, it leaves the
+    // transcript genuinely EMPTY, which is what the empty state keys on
+    // (`groups.length === 0`). A hidden seed row still counts as a group there, so
+    // seeding the create is exactly what stopped the hero from drawing.
+    if (String(res?.session_id || '')) {
+      try {
+        await host.request('session.title', {
+          profile: scope,
+          session_id: String(res.session_id),
+          title: 'New session'
+        })
+      } catch {
+        /* untitled is cosmetic; the tile still opens on the runtime */
+      }
     }
 
     noteOpened(storedId)
