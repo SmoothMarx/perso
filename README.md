@@ -31,6 +31,7 @@ dashboard backend for the two reads the SDK cannot reach.
 | ✅ **Multi-select** | Tick a set, then archive, close, delete or Apropos them in one go |
 | 🖱️ **The same menus** | Session, Group, Appearance, Assign to project — the roster's verbs, unchanged |
 | 🧩 **Shared state** | Groups, Apropos links, hidden flags and sections are **Personae's own document**, so a change in one pane (or on the phone) shows in the other |
+| 🖼️ **Empty-chat hero** | A session you open here starts blank — the profile's picture and its name take the empty screen, the way Bot Mode introduces a bot chat |
 | 🔍 **Search & filter** | Server-side title + message-body search; filter by activity, kind, or a profile set |
 
 ## What it deliberately does not do

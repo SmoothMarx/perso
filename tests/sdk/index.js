@@ -80,6 +80,7 @@ export const host = {
     /** The durable id + owner of the focused chat, which is what a "back to
      *  where I was" control navigates with (activeSessionId is a runtime id). */
     focusedSessionProfile: atom('default'),
+    focusedSessionProfile: atom(null),
     focusedStoredSessionId: atom(null),
     gateway: atom('127.0.0.1:9119'),
     model: atom('deepseek-flash'),
@@ -259,6 +260,16 @@ export function Badge({ children, className }) {
 
 export function Button({ children, className, onClick, size, variant, ...props }) {
   return jsx('button', { className, onClick, type: 'button', ...props, children })
+}
+
+/** `chat.empty` — the empty transcript's contribution area (core mounts every
+ *  registration and each answers for itself). */
+export const CHAT_EMPTY_AREA = 'chat.empty'
+
+/** Core's own lettering over the empty chat. A marker is enough: the plugin's
+ *  contract is "draw this text", not the font it uses. */
+export function Wordmark({ className, text, width }) {
+  return jsx('span', { 'data-slot': 'wordmark', 'data-width': width, className, children: text })
 }
 
 export function Codicon({ className, name }) {

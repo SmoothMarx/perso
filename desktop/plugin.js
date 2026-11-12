@@ -89,6 +89,8 @@
 import {
   ackStoredSessionId,
   Button,
+  CHAT_EMPTY_AREA,
+  Wordmark,
   Codicon,
   Dialog,
   DialogContent,
@@ -459,6 +461,15 @@ const SESSIONS_PER_PROFILE = 10
  *  is one item, so its members are never split), and "Show more" adds another
  *  page. It is a display cap, never a filter — the fetch is wider than the page
  *  (FLAT_FETCH per profile) so a global sort has something to sort. */
+/** Which empty transcripts THIS pane opened, so the chat-empty slot shows one
+ *  hero and not two. Every registration on `chat.empty` is mounted and answers
+ *  for itself; Perso and Personae both live in this window, so "I opened it" is
+ *  the only claim that cannot double-draw. */
+const OPENED_KEY = 'perso-opened-v1'
+const OPENED_MAX = 200
+/** A claim ages out: an old session reopened from core's own sidebar is not
+ *  this pane's to decorate. */
+const OPENED_TTL_MS = 12 * 60 * 60 * 1000
 /** Bounded: this is a view watermark, not history. Oldest entries go first. */
 const SEEN_KEY = 'perso-seen-v1'
 const SEEN_MAX = 400
@@ -635,6 +646,10 @@ const $expanded = atom({})
 let seenSessions = {}
 const $seen = atom({})
 
+/** `{stored id: opened-at ms}` — see OPENED_KEY. */
+let openedSessions = {}
+const $opened = atom({})
+
 /** Only OPEN profiles are stored: closed is the default, so a blob holding
  *  `false` for every profile the user ever tried would be noise that grows with
  *  the roster. Anything truthy opens the row (`{zulu: 'yes'}` is a yes). */
@@ -766,6 +781,8 @@ function loadPrefs() {
     $expanded.set(expandedProfiles)
     seenSessions = normalizeSeen(store?.get?.(SEEN_KEY, {}))
     $seen.set(seenSessions)
+    openedSessions = normalizeSeen(store?.get?.(OPENED_KEY, {}))
+    $opened.set(openedSessions)
   } catch {
     // No storage: prefs hold for this window only, which beats throwing.
   }
@@ -6863,6 +6880,50 @@ function SessionGroupHeading({
 // the parent it was seeded from), `sessionGroupBlocks` (a group box),
 // `SessionRow` (the row, its marks and its whole menu).
 
+/** Record that this pane opened a session (see OPENED_KEY). */
+function noteOpened(storedId) {
+  const id = String(storedId || '')
+
+  if (!id) {
+    return openedSessions
+  }
+
+  const next = { ...openedSessions, [id]: Date.now() }
+  const entries = Object.entries(next)
+
+  if (entries.length > OPENED_MAX) {
+    entries.sort((a, b) => Number(a[1]) - Number(b[1]))
+
+    for (const [old] of entries.slice(0, entries.length - OPENED_MAX)) {
+      delete next[old]
+    }
+  }
+
+  openedSessions = next
+  $opened.set(next)
+  persist(OPENED_KEY, next)
+
+  return next
+}
+
+/** Does THIS pane own the empty transcript on screen?
+ *
+ *  All three facts are required: we opened that session, recently, and it is the
+ *  one in front of the user. Anything less and a second pane (or a session
+ *  reopened from core) would decorate a chat it did not start — and because the
+ *  slot mounts EVERY registration, two claims draw two heroes. */
+function claimsChatEmpty({ sessionId, focusedId, openedAt, now, ttlMs = OPENED_TTL_MS }) {
+  const id = String(sessionId || '')
+
+  if (!id || (focusedId && String(focusedId) !== id)) {
+    return false
+  }
+
+  const at = Number(openedAt?.[id]) || 0
+
+  return at > 0 && Number(now) - at < ttlMs
+}
+
 function normalizeSeen(raw) {
   const out = {}
 
@@ -7244,6 +7305,52 @@ function PersoRow({
   )
 
   return sessionColorBox(sessionColor(profile, session?.id), node, key)
+}
+
+/** The empty transcript, contributed to the chat area: the profile's picture
+ *  over its name, the way Bot Mode introduces a bot chat (Pedro, 2026-11-11:
+ *  "when you start a new session in bots, the main screen shows the bot's name
+ *  and their profile picture" — "yes, to both Perso and Personae").
+ *
+ *  Declines everything it does not own: the slot mounts every contribution, and
+ *  a hero drawn over someone else's chat is worse than a blank thread. */
+function ProfileChatEmpty({ sessionId }) {
+  const focusedId = useValue(host.state.focusedStoredSessionId)
+  const profile = useValue(host.state.focusedSessionProfile)
+  const opened = useValue($opened)
+  const roster = useQuery({ queryKey: ROSTER_KEY, queryFn: fetchRoster, staleTime: 5000 })
+  const row = (roster.data || []).find(entry => entry.name === String(profile || ''))
+
+  if (
+    !claimsChatEmpty({ sessionId, focusedId, openedAt: opened, now: Date.now() }) ||
+    !row
+  ) {
+    return null
+  }
+
+  return jsxs('div', {
+    'data-slot': 'profile_chat_empty',
+    className:
+      'pointer-events-none flex w-full min-w-0 flex-col items-center justify-center px-0.5 py-6 text-center text-muted-foreground sm:px-6 lg:px-8',
+    children: [
+      jsx(
+        'div',
+        {
+          className: 'flex justify-center',
+          // The name is the chat's title, so IT sits on the optical centre line
+          // and the face hangs above it — the balance Bot Mode's empty state
+          // strikes.
+          style: { marginBottom: 12 },
+          children: jsx('div', {
+            className: 'overflow-hidden rounded-full',
+            children: jsx(Avatar, { row, size: 64 })
+          })
+        },
+        'face'
+      ),
+      jsx(Wordmark, { className: 'mb-1', text: row.label || row.name, width: 'calc(80% - 1rem)' }, 'wordmark')
+    ]
+  })
 }
 
 /** The pane's body: one activity-ordered list over every profile, its group
@@ -12573,6 +12680,7 @@ function MessengerPane() {
       const id = sessionIdOf(session) || String(session?.id || '')
 
       noteSeen(id, sessionActivityMs(session))
+      noteOpened(id)
       ackStoredSessionId?.(id, profile)
 
       return openSessionInProfile(profile, sessions, id)
@@ -13115,6 +13223,15 @@ export default {
         render: () => jsx(RoutinesPane, {})
       })
 
+    // The empty transcript of a session THIS pane opened: the profile's face and
+    // name, the way Bot Mode introduces a bot chat. Registered LAST on purpose —
+    // the panes are this plugin's own surface and come first in the registry.
+    ctx.register({
+      id: 'chat-empty',
+      area: CHAT_EMPTY_AREA,
+      data: { render: ({ sessionId }) => jsx(ProfileChatEmpty, { sessionId }) }
+    })
+
     if (typeof host.paneVisibility === 'function') {
       const $visible = host.paneVisibility(`${ID}:pane`)
       let disposeRoutines = null
@@ -13153,8 +13270,12 @@ export const __internals = {
   flatSessionItems,
   hideSessions,
   loadArchivedRows,
+  $opened,
   $seen,
   $sessionStates,
+  claimsChatEmpty,
+  noteOpened,
+  ProfileChatEmpty,
   bucketSessions,
   noteSeen,
   sessionActivityMs,
