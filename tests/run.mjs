@@ -6099,6 +6099,20 @@ if (process.env.DUMP_GROUPS) {
   check('…and the dialog is mounted in the pane', SRC7.includes("'edit-profile-dialog'"))
 
   // (4) Deleting a session deletes the LINE it belongs to (core orphans the rest).
+  // `session.list` projects no `last_active` (`_session_row_summary` sends
+  // id/title/preview/started_at/message_count/source), so every row read its
+  // CREATION time — the age on the right never moved and the order looked like
+  // creation order (Pedro, 2026-11-12).
+  check(
+    'a row’s time is its last activity, falling back only when nothing knows better',
+    __internals.activityMsFor({ id: 's1', last_active: 500, started_at: 100 }, {}) === 500000 &&
+      __internals.activityMsFor({ id: 's1', started_at: 100 }, { s1: 900000 }) === 900000 &&
+      // Nothing anywhere: the creation time is the honest last resort.
+      __internals.activityMsFor({ id: 's1', started_at: 100 }, {}) === 100000 &&
+      // A zero/garbage entry in the map must not win over a real started_at.
+      __internals.activityMsFor({ id: 's1', started_at: 100 }, { s1: 0 }) === 100000
+  )
+
   // Pedro, 2026-11-12: "if the user selects multiple sessions, then the
   // right-click menu options should apply to all selected."
   check(

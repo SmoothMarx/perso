@@ -481,7 +481,7 @@ const AVATAR_ROW_SIZE = 17
 /** Rendered in the toolbar: the only proof of WHICH bytes the app is running.
  *  A pane that has been silently running a stale build looks exactly like a
  *  broken feature, and that mistake has cost this file three rounds. */
-const BUILD = '0.1.17'
+const BUILD = '0.1.18'
 /** The picture at the head of a single-profile group box. Smaller than a row's:
  *  it labels a section, it is not the row you are scanning. */
 const AVATAR_HEAD_SIZE = 14
@@ -2881,6 +2881,14 @@ const $sessionStates = atom({})
  *  `session.active_list` read the states are built from, painted in the toolbar
  *  while a status report is being chased. Delete with the fix. */
 const $liveInfo = atom({ total: 0, working: 0 })
+/** `{storedId: ms}` of each session's LAST ACTIVITY, from the same per-profile
+ *  read the dots use. It exists because `session.list` — the RPC every row here
+ *  is drawn from — does not project `last_active` at all (`_session_row_summary`
+ *  sends id/title/preview/started_at/message_count/source and nothing else), so
+ *  every row fell back to `started_at` and showed its CREATION time (Pedro,
+ *  2026-11-12: "the time shown should be the time of last activity"). The sweep
+ *  already reads the rows that carry it; this publishes them. */
+const $lastActive = atom({})
 
 /** The dot ONE session shows, from the two sources a plugin can read. The
  *  priority is core's own (`$sessionDotStateById`): a session blocked on a
@@ -3034,6 +3042,7 @@ async function fetchRoster() {
     // state is what the list's dividers are made of. Only ids the sweep actually
     // saw are published — a missing id reads 'idle', which is the neutral bucket.
     const sessionStates = {}
+    const lastActive = {}
 
     for (const profileRows of Object.values(Object.fromEntries(lists))) {
       for (const session of profileRows || []) {
@@ -3041,11 +3050,19 @@ async function fetchRoster() {
 
         if (id) {
           sessionStates[id] = dotStateFor(liveMap[id], session?.unread === true)
+
+          const at = sessionActivityMs(session)
+
+          if (at > 0) {
+            lastActive[id] = at
+          }
         }
       }
     }
 
+    lastActiveById = lastActive
     $sessionStates.set(sessionStates)
+    $lastActive.set(lastActive)
 
     const liveRows = Object.values(liveMap)
     $liveInfo.set({
@@ -6104,6 +6121,9 @@ function SessionRow({
   // offers the way back without the profile list re-rendering for it.
   const hiddenState = useValue($hiddenSessions)
   const hidden = (hiddenState[String(profile)] || []).includes(storedId)
+  // Subscribed because the AGE is derived from it: the sweep fills it moments
+  // after the first paint (see $lastActive).
+  useValue($lastActive)
   // A search hit from the ARCHIVE: the row is here because the query matched a
   // chat that is not in any live list, so it says where it came from instead of
   // looking like an ordinary recent session.
@@ -6131,7 +6151,7 @@ function SessionRow({
   const mark = groupedChild ? '↳' : aproposGroup ? '◆' : ''
   // Which channel this conversation arrived on ('' = the app's own surfaces).
   const channel = channelLabel(session?.source)
-  const age = ageLabel(secondsToMs(session?.last_active || session?.started_at), nowMs)
+  const age = ageLabel(sessionActivityMs(session), nowMs)
   // The last line of the conversation, cleaned by the same helper the roster's
   // preview line uses (it rejects injected/system boilerplate, so a compaction
   // banner can never become the thing the user reads under a title).
@@ -7299,8 +7319,30 @@ function bucketSessions(sessions, states, seen, focusedId) {
  *  not date falls back to its start, then to the epoch. A row that sorts last is
  *  a wrong place; an `undefined` inside a comparator is an unstable list. */
 function sessionActivityMs(session) {
-  return secondsToMs(session?.last_active) ?? secondsToMs(session?.started_at) ?? 0
+  return activityMsFor(session, lastActiveById)
 }
+
+/** When a row last MOVED, with the sweep's answer as the fallback. `session.list`
+ *  sends no `last_active`, so without the map every label and every comparison
+ *  below read `started_at` — a list that looks sorted by creation, and an age on
+ *  the right that never moves. Pure. */
+function activityMsFor(session, lastActive) {
+  const own = secondsToMs(session?.last_active)
+
+  if (own !== null) {
+    return own
+  }
+
+  const known = Number(lastActive?.[String(session?.id || '')])
+
+  return Number.isFinite(known) && known > 0 ? known : (secondsToMs(session?.started_at) ?? 0)
+}
+
+/** The map the resolver reads, kept beside the atom it mirrors (the same shape
+ *  the hidden/opened stores use). Module scope rather than a prop because
+ *  `sessionActivityMs` is called from ordering, bucketing and the read watermark
+ *  as well as the label — one answer, four consumers. */
+let lastActiveById = {}
 
 /** One profile's contribution to the flat list. Pure, so the harness can pin the
  *  ordering without a DOM.
@@ -13547,7 +13589,9 @@ export const __internals = {
   loadArchivedRows,
   $opened,
   $seen,
+  $lastActive,
   $sessionStates,
+  activityMsFor,
   claimsChatEmpty,
   noteOpened,
   ProfileChatEmpty,
