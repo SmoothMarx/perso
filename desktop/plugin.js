@@ -478,6 +478,10 @@ const FLAT_FETCH = 60
 /** The picture on a session row. Small enough to repeat on every line, large
  *  enough that a profile is recognisable from its avatar alone. */
 const AVATAR_ROW_SIZE = 17
+/** Rendered in the toolbar: the only proof of WHICH bytes the app is running.
+ *  A pane that has been silently running a stale build looks exactly like a
+ *  broken feature, and that mistake has cost this file three rounds. */
+const BUILD = '0.1.12'
 /** The picture at the head of a single-profile group box. Smaller than a row's:
  *  it labels a section, it is not the row you are scanning. */
 const AVATAR_HEAD_SIZE = 14
@@ -3908,6 +3912,16 @@ async function newSession(profile) {
     return host.newChat(scope)
   }
 
+  const say = message => {
+    try {
+      host.notify?.({ kind: 'info', message: `Perso ${BUILD}: ${message}` })
+    } catch {
+      /* a toast is a courtesy, never the flow */
+    }
+  }
+
+  say(`new session for "${scope}" — creating`)
+
   try {
     const res = await host.request('session.create', {
       idempotency_key: `sessions-new-${scope}-${Date.now().toString(36)}`,
@@ -3919,8 +3933,12 @@ async function newSession(profile) {
     if (!storedId) {
       // A gateway that answered without a stored id cannot be opened by id: fall
       // back to the app's own draft rather than opening nothing at all.
+      say('gateway answered WITHOUT a stored id — falling back to a draft')
+
       return host.newChat(scope)
     }
+
+    say(`created ${storedId}`)
 
     // A bare create writes NO row, and a session with no row cannot be resumed or
     // listed later. `session.title` persists it (`_ensure_session_db_row`: an
@@ -3948,6 +3966,9 @@ async function newSession(profile) {
     // "Waking up <profile>" forever (Pedro, 2026-11-11).
     return await openSession(storedId, scope, 'tab', CHILDLESS_OPEN)
   } catch (error) {
+    // On screen, not just in a log: from the outside this looked like a dead
+    // button, and every guess about WHY cost a round trip.
+    say(`create FAILED — ${String(error?.message || error).slice(0, 160)}`)
     host.notifyError?.(String(error?.message || error))
 
     // Never a dead button.
@@ -5486,7 +5507,10 @@ async function resolvedMemberRows(profile, ids) {
   }
 
   if (!rows.length) {
-    const archived = (await listArchivedSessions(profile, SESSIONS_FILL_CAP)) || []
+    // The backend refuses above 200 (`Query(..., le=200)`), and asking for the
+    // fill cap answered a bare 422 — an archive that is reachable but refuses the
+    // question must not read as an empty one.
+    const archived = (await listArchivedSessions(profile, Math.min(SESSIONS_FILL_CAP, 200))) || []
 
     rows = archived
       .filter(row => ids.map(String).includes(String(row?.id)))
@@ -9036,7 +9060,7 @@ function Toolbar({ countLabel, onBell, onFiles, onNewGroup, onSelect, rows, sele
                 className: 'min-w-0 shrink truncate text-[0.6875rem] text-(--ui-text-quaternary)',
                 // A caller with its own unit (Perso counts SESSIONS, not
                 // profiles) passes the whole line; the roster keeps its own.
-                children: countLabel || `${shownCount}/${rows.length} ${t('profilesLabel')}`
+                children: `${countLabel || `${shownCount}/${rows.length} ${t('profilesLabel')}`} · ${BUILD}`
               },
               'count'
             )
