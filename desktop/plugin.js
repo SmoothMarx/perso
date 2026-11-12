@@ -481,7 +481,7 @@ const AVATAR_ROW_SIZE = 17
 /** Rendered in the toolbar: the only proof of WHICH bytes the app is running.
  *  A pane that has been silently running a stale build looks exactly like a
  *  broken feature, and that mistake has cost this file three rounds. */
-const BUILD = '0.1.16'
+const BUILD = '0.1.17'
 /** The picture at the head of a single-profile group box. Smaller than a row's:
  *  it labels a section, it is not the row you are scanning. */
 const AVATAR_HEAD_SIZE = 14
@@ -2876,6 +2876,11 @@ const $profileDots = atom({})
  *  has to come from ONE place — the same `dotStateFor` the dots are painted
  *  from, or the divider and the dot beside a row could disagree. */
 const $sessionStates = atom({})
+/** Diagnostic, and the only way to answer "does the sweep even SEE a running
+ *  session?" without the app in front of me: `{total, working}` from the same
+ *  `session.active_list` read the states are built from, painted in the toolbar
+ *  while a status report is being chased. Delete with the fix. */
+const $liveInfo = atom({ total: 0, working: 0 })
 
 /** The dot ONE session shows, from the two sources a plugin can read. The
  *  priority is core's own (`$sessionDotStateById`): a session blocked on a
@@ -3041,6 +3046,12 @@ async function fetchRoster() {
     }
 
     $sessionStates.set(sessionStates)
+
+    const liveRows = Object.values(liveMap)
+    $liveInfo.set({
+      total: liveRows.length,
+      working: liveRows.filter(status => LIVE_WORKING.has(String(status || ''))).length
+    })
   } catch {
     // Belt-and-braces: nothing here may take the roster down with it.
   }
@@ -9205,7 +9216,7 @@ function SelectBar({ armed, busy, count, onApropos, onArchive, onClear, onClose,
   })
 }
 
-function Toolbar({ countLabel, onBell, onFiles, onNewGroup, onSelect, rows, selecting, shownCount, t, toasts }) {
+function Toolbar({ countLabel, liveTotal = 0, liveWorking = 0, onBell, onFiles, onNewGroup, onSelect, rows, selecting, shownCount, t, toasts }) {
   return jsxs('div', {
     className: 'flex min-w-0 items-center justify-between gap-2 px-2.5 pt-2.5 pb-1.5',
     children: [
@@ -9231,7 +9242,7 @@ function Toolbar({ countLabel, onBell, onFiles, onNewGroup, onSelect, rows, sele
                 className: 'min-w-0 shrink truncate text-[0.6875rem] text-(--ui-text-quaternary)',
                 // A caller with its own unit (Perso counts SESSIONS, not
                 // profiles) passes the whole line; the roster keeps its own.
-                children: `${countLabel || `${shownCount}/${rows.length} ${t('profilesLabel')}`} · ${BUILD}`
+                children: `${countLabel || `${shownCount}/${rows.length} ${t('profilesLabel')}`} · ${BUILD} · live ${liveWorking}/${liveTotal}`
               },
               'count'
             )
@@ -12409,6 +12420,7 @@ function MessengerPane() {
   const sessionOrderState = useValue($sessionOrder)
   const view = useValue($listView)
   const toasts = useValue($activityToasts)
+  const liveInfo = useValue($liveInfo)
   // Which profiles' last load threw — drawn as a note on their own row.
   const failedProfiles = new Set((useValue($loadFailures) || []).map(String))
   // The search box and the needle it drives are TWO atoms (see scheduleSearch):
@@ -13086,6 +13098,9 @@ function MessengerPane() {
           (total, list) => total + (Array.isArray(list) ? list.length : 0),
           0
         )} ${t('sessionsLabel')}`,
+        // Diagnostic while status not-updating is open: what the sweep saw live.
+        liveTotal: liveInfo.total,
+        liveWorking: liveInfo.working,
         onBell: toggleToasts,
         onFiles: openCoreFiles,
         onSelect: () => (selecting ? leaveSelect() : setSelecting(true)),
