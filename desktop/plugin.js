@@ -481,7 +481,7 @@ const AVATAR_ROW_SIZE = 17
 /** Rendered in the toolbar: the only proof of WHICH bytes the app is running.
  *  A pane that has been silently running a stale build looks exactly like a
  *  broken feature, and that mistake has cost this file three rounds. */
-const BUILD = '0.1.13'
+const BUILD = '0.1.14'
 /** The picture at the head of a single-profile group box. Smaller than a row's:
  *  it labels a section, it is not the row you are scanning. */
 const AVATAR_HEAD_SIZE = 14
@@ -3920,8 +3920,6 @@ async function newSession(profile) {
     }
   }
 
-  say(`new session for "${scope}" — creating`)
-
   try {
     const res = await host.request('session.create', {
       idempotency_key: `sessions-new-${scope}-${Date.now().toString(36)}`,
@@ -3937,8 +3935,6 @@ async function newSession(profile) {
 
       return host.newChat(scope)
     }
-
-    say(`created ${storedId}`)
 
     // A bare create writes NO row, and a session with no row cannot be resumed or
     // listed later. `session.title` persists it (`_ensure_session_db_row`: an
